@@ -1,9 +1,15 @@
 [package]
 name = "habctl"
 version = "0.1.0"
-authors = ["David <david@mju.io>"]
+authors = ["David Kern <david@mju.io>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT/Apache-2.0"
+repository = "https://github.com/davidkern/habctl"
+description = "HAB truck camper backend services."
 
 [dependencies]
+diesel = { version = "1.4.5", features = ["postgres"] }
+dotenv = "0.15.0"
+nom = "6.0.0"
+rocket = "0.4.6"
+serial = "0.4.0"

@@ -3,5 +3,8 @@ pub mod flow;
 
 fn main() {
     electrical::mppt::run();
-    flow::example();
+    
+    let f = flow::Flow::new()
+        .to(|flow| flow.source())
+        .to(|flow| flow.source());
 }

@@ -1,3 +1,7 @@
+pub mod electrical;
+pub mod flow;
+
 fn main() {
-    println!("Hello, world!");
+    electrical::mppt::run();
+    flow::example();
 }

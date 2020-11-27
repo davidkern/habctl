@@ -8,6 +8,7 @@ repository = "https://github.com/davidkern/habctl"
 description = "HAB truck camper backend services."
 
 [dependencies]
+circular = "0.3.0"
 diesel = { version = "1.4.5", features = ["postgres"] }
 dotenv = "0.15.0"
 nom = "6.0.0"

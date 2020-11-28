@@ -12,6 +12,15 @@
 				"isDefault": true
 			},
 			"label": "Rust: cargo build - habctl"
+		},
+		{
+			"type": "cargo",
+			"subcommand": "test",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test",
+			"label": "Rust: cargo test - habctl"
 		}
 	]
 }

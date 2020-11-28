@@ -13,4 +13,4 @@ diesel = { version = "1.4.5", features = ["postgres"] }
 dotenv = "0.15.0"
 nom = "6.0.0"
 rocket = "0.4.6"
-serial = "0.4.0"
+serialport = "3.3.0"

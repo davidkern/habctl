@@ -8,9 +8,9 @@ repository = "https://github.com/davidkern/habctl"
 description = "HAB truck camper backend services."
 
 [dependencies]
-circular = "0.3.0"
-diesel = { version = "1.4.5", features = ["postgres"] }
-dotenv = "0.15.0"
+actix = "0.10.0"
+actix-rt = "1.1.1"
+actix-web = "3.3.2"
+actix-web-actors = "3.0.0"
 nom = "6.0.0"
-rocket = "0.4.6"
-serialport = "3.3.0"
+mio-serial = "3.3.1"

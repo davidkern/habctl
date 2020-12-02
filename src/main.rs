@@ -40,6 +40,9 @@ async fn ws_index(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
+    env_logger::init();
+
     HttpServer::new(|| {
         App::new()
             // enable logger
@@ -49,7 +52,7 @@ async fn main() -> std::io::Result<()> {
             // static files
             .service(Files::new("/", "../habux/static/").index_file("index.html"))
     })
-        .bind("127.0.0.1:8080")?
+        .bind("0.0.0.0:8080")?
         .run()
         .await
 }

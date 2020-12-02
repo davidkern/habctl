@@ -2,6 +2,12 @@
 
 HAB truck camper backend services.
 
+# Building
+
+This binary is built for a Linux SBC (currently running Debian).  The following dependencies should be installed:
+
+* libudev-dev - for serialport crate
+
 ## License
 
 Licensed under either of

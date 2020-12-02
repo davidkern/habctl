@@ -50,7 +50,7 @@ async fn main() -> std::io::Result<()> {
             // websocket route
             .service(web::resource("/ws/").route(web::get().to(ws_index)))
             // static files
-            .service(Files::new("/", "../habux/static/").index_file("index.html"))
+            .service(Files::new("/", "../habux/dist/").index_file("index.html"))
     })
         .bind("0.0.0.0:8080")?
         .run()

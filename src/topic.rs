@@ -45,6 +45,7 @@ impl TopicServer {
             topics: HashMap::new(),
         }
     }
+
 }
 
 impl Actor for TopicServer {

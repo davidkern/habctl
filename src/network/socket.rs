@@ -5,6 +5,8 @@ use std::time::{Instant, Duration};
 
 use crate::telemetry::solar::SolarTelemetry;
 use crate::topic::{TopicServer, Join};
+use actix_web::web::Data;
+use crate::AppData;
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(20);
@@ -17,7 +19,7 @@ pub struct UISocket {
 }
 
 impl UISocket {
-    pub fn start(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+    pub fn start(props: Data<AppData>, req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
         match ws::start_with_addr(
             Self {
                 id: 0,
@@ -26,9 +28,8 @@ impl UISocket {
             &req,
             stream) {
             Ok((addr, response)) => {
-                // TODO: Use a global topic server, not a locally started
-                let topic_server = TopicServer::start_default();
-                topic_server.do_send(Join::new(addr.recipient()));
+                //TODO: TopicService isn't going to work correctly here
+                //props.services.topics.do_send(Join::new(addr.recipient()));
 
                 Ok(response)
             },

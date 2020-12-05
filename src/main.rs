@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 
+pub mod broadcast;
 pub mod hardware;
 pub mod telemetry;
 pub mod topic;
@@ -24,13 +25,13 @@ async fn ws_index(props: Data<AppData>, req: HttpRequest, stream: web::Payload) 
 }
 
 pub struct AppServices {
-    topics: TopicServer,
+    _topics: TopicServer,
 }
 
 impl AppServices {
     fn new() -> Self {
         Self {
-            topics: TopicServer::new(),
+            _topics: TopicServer::new(),
         }
     }
 }

@@ -4,7 +4,6 @@ use actix::{Actor, ActorContext, AsyncContext, StreamHandler, Handler};
 use std::time::{Instant, Duration};
 
 use crate::telemetry::solar::SolarTelemetry;
-use crate::topic::{TopicServer, Join};
 use actix_web::web::Data;
 use crate::AppData;
 
@@ -19,7 +18,7 @@ pub struct UISocket {
 }
 
 impl UISocket {
-    pub fn start(props: Data<AppData>, req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+    pub fn start(_props: Data<AppData>, req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
         match ws::start_with_addr(
             Self {
                 id: 0,
@@ -27,7 +26,7 @@ impl UISocket {
             },
             &req,
             stream) {
-            Ok((addr, response)) => {
+            Ok((_addr, response)) => {
                 //TODO: TopicService isn't going to work correctly here
                 //props.services.topics.do_send(Join::new(addr.recipient()));
 

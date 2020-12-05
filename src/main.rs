@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-pub mod phy;
+pub mod hardware;
 pub mod telemetry;
 pub mod topic;
 pub mod network;

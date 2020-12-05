@@ -1,7 +1,10 @@
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use actix::{Actor, ActorContext, AsyncContext, StreamHandler};
+use actix::{Actor, ActorContext, AsyncContext, StreamHandler, Addr, Handler};
 use std::time::{Instant, Duration};
+
+use crate::telemetry::solar::SolarTelemetry;
+use crate::topic::{TopicServer, Join};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(20);
@@ -15,13 +18,22 @@ pub struct UISocket {
 
 impl UISocket {
     pub fn start(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-        ws::start(
+        match ws::start_with_addr(
             Self {
                 id: 0,
                 last_heartbeat: Instant::now(),
             },
             &req,
-            stream)
+            stream) {
+            Ok((addr, response)) => {
+                // TODO: Use a global topic server, not a locally started
+                let topic_server = TopicServer::start_default();
+                topic_server.do_send(Join::new(addr.recipient()));
+
+                Ok(response)
+            },
+            Err(e) => Err(e),
+        }
     }
 
     fn heartbeat(&self, ctx: &mut <Self as Actor>::Context) {
@@ -69,5 +81,16 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for UISocket {
             }
             _ => ctx.stop(),
         }
+    }
+}
+
+impl Handler<SolarTelemetry> for UISocket {
+    type Result = ();
+
+    fn handle(
+        &mut self,
+        msg: SolarTelemetry,
+        ctx: &mut Self::Context,
+    ) {
     }
 }

@@ -2,6 +2,7 @@
 extern crate log;
 
 pub mod phy;
+pub mod telemetry;
 pub mod topic;
 pub mod ui;
 

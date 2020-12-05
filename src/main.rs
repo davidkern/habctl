@@ -1,15 +1,12 @@
 #[macro_use]
 extern crate log;
 
-use actix_web::{web, App, Error, HttpServer, middleware, HttpRequest, HttpResponse};
-use actix_web_actors::ws;
-use actix_files::Files;
-use actix::{Actor, ActorContext, AsyncContext, StreamHandler};
-use std::time::{Instant, Duration};
-
 pub mod phy;
+pub mod topic;
 pub mod ui;
 
+use actix_web::{web, App, Error, HttpServer, middleware, HttpRequest, HttpResponse};
+use actix_files::Files;
 use ui::socket::UISocket;
 
 #[cfg(test)]

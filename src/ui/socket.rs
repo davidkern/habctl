@@ -1,6 +1,5 @@
-use actix_web::{web, App, Error, HttpServer, middleware, HttpRequest, HttpResponse};
+use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use actix_files::Files;
 use actix::{Actor, ActorContext, AsyncContext, StreamHandler};
 use std::time::{Instant, Duration};
 

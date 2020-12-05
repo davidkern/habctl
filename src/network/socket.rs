@@ -1,6 +1,6 @@
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use actix::{Actor, ActorContext, AsyncContext, StreamHandler, Addr, Handler};
+use actix::{Actor, ActorContext, AsyncContext, StreamHandler, Handler};
 use std::time::{Instant, Duration};
 
 use crate::telemetry::solar::SolarTelemetry;
@@ -89,8 +89,8 @@ impl Handler<SolarTelemetry> for UISocket {
 
     fn handle(
         &mut self,
-        msg: SolarTelemetry,
-        ctx: &mut Self::Context,
+        _msg: SolarTelemetry,
+        _ctx: &mut Self::Context,
     ) {
     }
 }

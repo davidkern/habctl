@@ -4,11 +4,11 @@ extern crate log;
 pub mod phy;
 pub mod telemetry;
 pub mod topic;
-pub mod ui;
+pub mod network;
 
 use actix_web::{web, App, Error, HttpServer, middleware, HttpRequest, HttpResponse};
 use actix_files::Files;
-use ui::socket::UISocket;
+use network::socket::UISocket;
 
 #[cfg(test)]
 mod test;  // Test fixtures
@@ -31,7 +31,7 @@ async fn main() -> std::io::Result<()> {
             // enable logger
             .wrap(middleware::Logger::default())
             // user interface websocket route
-            .service(web::resource("/socket/ui").route(web::get().to(ws_index)))
+            .service(web::resource("/socket/network").route(web::get().to(ws_index)))
             // static files
             .service(Files::new("/", "../habux/dist/").index_file("index.html"))
     })

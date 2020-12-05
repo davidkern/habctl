@@ -4,7 +4,6 @@
 use actix::prelude::*;
 use std::collections::HashMap;
 use std::any::{TypeId, Any};
-use std::marker::PhantomData;
 
 #[derive(Debug)]
 pub struct Topic<M>

@@ -1,19 +1,17 @@
 #[macro_use]
 extern crate log;
 
+pub mod broadcast;
+pub mod hardware;
+pub mod network;
+pub mod telemetry;
+
 use actix_web::{web, App, Error, HttpServer, middleware, HttpRequest, HttpResponse};
-use actix_web_actors::ws;
 use actix_files::Files;
-use actix::{Actor, ActorContext, AsyncContext, StreamHandler};
-use std::time::{Instant, Duration};
-
-pub mod phy;
-pub mod ui;
-
-use ui::socket::UISocket;
-
-#[cfg(test)]
-mod test;  // Test fixtures
+use network::socket::UISocket;
+use crate::broadcast::Broadcast;
+use actix::SystemService;
+use crate::telemetry::solar::SolarTelemetryService;
 
 /// handle websocket handshake and spawn `ClientSocket` actor
 async fn ws_index(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
@@ -29,6 +27,10 @@ async fn main() -> std::io::Result<()> {
 
     debug!("creating HttpServer");
     HttpServer::new(|| {
+        // ensures services are started at launch
+        Broadcast::from_registry();
+        SolarTelemetryService::from_registry();
+
         App::new()
             // enable logger
             .wrap(middleware::Logger::default())

@@ -1,8 +1,10 @@
-use actix_web::{web, App, Error, HttpServer, middleware, HttpRequest, HttpResponse};
+use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use actix_files::Files;
-use actix::{Actor, ActorContext, AsyncContext, StreamHandler};
+use actix::{Actor, ActorContext, AsyncContext, StreamHandler, Handler};
 use std::time::{Instant, Duration};
+
+use crate::telemetry::solar::SolarTelemetry;
+use crate::broadcast::Broadcast;
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(20);
@@ -16,13 +18,18 @@ pub struct UISocket {
 
 impl UISocket {
     pub fn start(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-        ws::start(
+        match ws::start_with_addr(
             Self {
                 id: 0,
                 last_heartbeat: Instant::now(),
             },
             &req,
-            stream)
+            stream) {
+            Ok((_addr, response)) => {
+                Ok(response)
+            },
+            Err(e) => Err(e),
+        }
     }
 
     fn heartbeat(&self, ctx: &mut <Self as Actor>::Context) {
@@ -42,7 +49,12 @@ impl Actor for UISocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        Broadcast::join(ctx.address().recipient::<SolarTelemetry>());
         self.heartbeat(ctx);
+    }
+
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        Broadcast::leave(ctx.address().recipient::<SolarTelemetry>());
     }
 }
 
@@ -70,5 +82,17 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for UISocket {
             }
             _ => ctx.stop(),
         }
+    }
+}
+
+impl Handler<SolarTelemetry> for UISocket {
+    type Result = ();
+
+    fn handle(
+        &mut self,
+        msg: SolarTelemetry,
+        ctx: &mut Self::Context,
+    ) {
+        ctx.text(format!("\"{:?}\"", msg));
     }
 }

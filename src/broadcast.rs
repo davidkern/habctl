@@ -2,7 +2,7 @@ use actix::{Actor, Context, Handler, Message, SystemService, Supervised, Recipie
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-pub trait BroadcastMessage: 'static + Message<Result=()> + Send + Any + Copy {}
+pub trait BroadcastMessage: 'static + Message<Result=()> + Send + Copy + Any {}
 
 #[derive(Debug)]
 struct Topic<MSG: BroadcastMessage>{

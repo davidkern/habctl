@@ -903,9 +903,9 @@ dependencies = [
  "actix-web-actors",
  "env_logger",
  "log",
- "mio-serial",
  "nom 6.0.0",
  "rand",
+ "tokio-serial",
  "typemap",
 ]
 
@@ -1923,6 +1923,16 @@ dependencies = [
  "signal-hook-registry",
  "slab",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "tokio-serial"
+version = "4.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ad6436458f961b1345f55f2a771325f8dbdd9b5908285059d34a31e86779e38"
+dependencies = [
+ "mio-serial",
+ "tokio",
 ]
 
 [[package]]

@@ -4,8 +4,7 @@ use actix::{Actor, ActorContext, AsyncContext, StreamHandler, Handler};
 use std::time::{Instant, Duration};
 
 use crate::telemetry::solar::SolarTelemetry;
-use actix_web::web::Data;
-use crate::AppData;
+use crate::broadcast::Broadcast;
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(20);
@@ -18,7 +17,7 @@ pub struct UISocket {
 }
 
 impl UISocket {
-    pub fn start(_props: Data<AppData>, req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+    pub fn start(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
         match ws::start_with_addr(
             Self {
                 id: 0,
@@ -27,9 +26,6 @@ impl UISocket {
             &req,
             stream) {
             Ok((_addr, response)) => {
-                //TODO: TopicService isn't going to work correctly here
-                //props.services.topics.do_send(Join::new(addr.recipient()));
-
                 Ok(response)
             },
             Err(e) => Err(e),
@@ -53,7 +49,12 @@ impl Actor for UISocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        Broadcast::join(ctx.address().recipient::<SolarTelemetry>());
         self.heartbeat(ctx);
+    }
+
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        Broadcast::leave(ctx.address().recipient::<SolarTelemetry>());
     }
 }
 
@@ -89,8 +90,9 @@ impl Handler<SolarTelemetry> for UISocket {
 
     fn handle(
         &mut self,
-        _msg: SolarTelemetry,
-        _ctx: &mut Self::Context,
+        msg: SolarTelemetry,
+        ctx: &mut Self::Context,
     ) {
+        ctx.text(format!("\"{:?}\"", msg));
     }
 }

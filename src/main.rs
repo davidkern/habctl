@@ -3,51 +3,23 @@ extern crate log;
 
 pub mod broadcast;
 pub mod hardware;
-pub mod telemetry;
-pub mod topic;
 pub mod network;
+pub mod telemetry;
 
 use actix_web::{web, App, Error, HttpServer, middleware, HttpRequest, HttpResponse};
 use actix_files::Files;
 use network::socket::UISocket;
-use std::sync::Arc;
-use crate::topic::TopicServer;
-use actix_web::web::Data;
-
-#[cfg(test)]
-mod test;  // Test fixtures
+use crate::broadcast::Broadcast;
+use actix::SystemService;
+use crate::telemetry::solar::SolarTelemetryService;
 
 /// handle websocket handshake and spawn `ClientSocket` actor
-async fn ws_index(props: Data<AppData>, req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    let resp = UISocket::start(props, req, stream);
+async fn ws_index(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+    let resp = UISocket::start(req, stream);
     debug!("ws_index response: {:?}", resp);
     resp
 }
 
-pub struct AppServices {
-    _topics: TopicServer,
-}
-
-impl AppServices {
-    fn new() -> Self {
-        Self {
-            _topics: TopicServer::new(),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct AppData {
-    services: Arc<AppServices>,
-}
-
-impl AppData {
-    fn new() -> Self {
-        Self {
-            services: Arc::new(AppServices::new()),
-        }
-    }
-}
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "habctl=debug,actix_server=info,actix_web=info");
@@ -55,13 +27,15 @@ async fn main() -> std::io::Result<()> {
 
     debug!("creating HttpServer");
     HttpServer::new(|| {
+        // ensures services are started at launch
+        Broadcast::from_registry();
+        SolarTelemetryService::from_registry();
+
         App::new()
-            // app data
-            .data(AppData::new())
             // enable logger
             .wrap(middleware::Logger::default())
             // user interface websocket route
-            .service(web::resource("/socket/network").route(web::get().to(ws_index)))
+            .service(web::resource("/socket/ui").route(web::get().to(ws_index)))
             // static files
             .service(Files::new("/", "../habux/dist/").index_file("index.html"))
     })

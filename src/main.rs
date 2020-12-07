@@ -4,6 +4,7 @@ pub mod telemetry;
 pub mod web;
 
 pub static STATIC_PATH: &str = "../habux/dist";
+pub static WEB_LISTEN_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 8080);
 
 #[tokio::main]
 async fn main() {
@@ -15,7 +16,7 @@ async fn main() {
 
     // start services
     tokio::join!(
-        web::serve(([0, 0, 0, 0], 8000))
+        web::serve(WEB_LISTEN_ADDR),
     );
 
     log::debug!("shutting down");

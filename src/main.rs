@@ -1,45 +1,23 @@
-#[macro_use]
-extern crate log;
-
-pub mod broadcast;
 pub mod hardware;
 pub mod network;
 pub mod telemetry;
+pub mod web;
 
-use actix_web::{web, App, Error, HttpServer, middleware, HttpRequest, HttpResponse};
-use actix_files::Files;
-use network::socket::UISocket;
-use crate::broadcast::Broadcast;
-use actix::SystemService;
-use crate::telemetry::solar::SolarTelemetryService;
+pub static STATIC_PATH: &str = "../habux/dist";
+pub static WEB_LISTEN_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 8080);
 
-/// handle websocket handshake and spawn `ClientSocket` actor
-async fn ws_index(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    let resp = UISocket::start(req, stream);
-    debug!("ws_index response: {:?}", resp);
-    resp
-}
+#[tokio::main]
+async fn main() {
+    // log configuration
+    std::env::set_var("RUST_LOG", "habctl=debug,warp=debug");
+    pretty_env_logger::init();
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "habctl=debug,actix_server=info,actix_web=info");
-    env_logger::init();
+    log::debug!("starting up");
 
-    debug!("creating HttpServer");
-    HttpServer::new(|| {
-        // ensures services are started at launch
-        Broadcast::from_registry();
-        SolarTelemetryService::from_registry();
+    // start services
+    tokio::join!(
+        web::serve(WEB_LISTEN_ADDR),
+    );
 
-        App::new()
-            // enable logger
-            .wrap(middleware::Logger::default())
-            // user interface websocket route
-            .service(web::resource("/socket/ui").route(web::get().to(ws_index)))
-            // static files
-            .service(Files::new("/", "../habux/dist/").index_file("index.html"))
-    })
-        .bind("0.0.0.0:8080")?
-        .run()
-        .await
+    log::debug!("shutting down");
 }

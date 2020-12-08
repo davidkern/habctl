@@ -1,5 +1,4 @@
 pub mod hardware;
-pub mod network;
 pub mod telemetry;
 pub mod web;
 

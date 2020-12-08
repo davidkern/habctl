@@ -1,4 +1,7 @@
+use crate::system::Sys;
+
 pub mod hardware;
+pub mod system;
 pub mod telemetry;
 pub mod web;
 
@@ -11,11 +14,20 @@ async fn main() {
     std::env::set_var("RUST_LOG", "habctl=debug,warp=debug");
     pretty_env_logger::init();
 
-    log::debug!("starting up");
+    log::debug!("constructing system");
+
+    // Allocate state up-front and freely share the reference
+    let sys: system::Sys = {
+        let the_system: system::System = Default::default();
+        let boxed_system = Box::new(the_system);
+        Box::leak(boxed_system)
+    };
+
+    log::debug!("starting server");
 
     // start services
     tokio::join!(
-        web::serve(WEB_LISTEN_ADDR),
+        web::serve(sys, WEB_LISTEN_ADDR),
     );
 
     log::debug!("shutting down");

@@ -2,18 +2,20 @@ use warp::{Filter, Reply};
 use futures::{FutureExt, StreamExt};
 use warp::ws::{Ws, WebSocket, Message};
 use tokio::sync::mpsc;
+use crate::system::Sys;
+use crate::telemetry::ReceiverIdentity;
 
 /// UI Websocket at /socket/ui
-pub fn ui_socket() -> impl Filter<Extract = impl Reply, Error = warp::Rejection> + Clone {
+pub fn ui_socket(sys: Sys) -> impl Filter<Extract = impl Reply, Error = warp::Rejection> + Clone {
     warp::path!("socket" / "ui")
         .and(warp::ws())
-        .map(|ws: Ws| {
-            ws.on_upgrade(move |socket| socket_connected(socket))
+        .map(move |ws: Ws| {
+            ws.on_upgrade(move |socket| socket_connected(sys, socket))
         })
 }
 
 /// Socket has connected
-async fn socket_connected(ws: WebSocket) {
+async fn socket_connected(sys: Sys, ws: WebSocket) {
     let (ws_tx, mut ws_rx) = ws.split();
     let (tx, rx) = mpsc::unbounded_channel();
 
@@ -29,6 +31,9 @@ async fn socket_connected(ws: WebSocket) {
         // do nothing - `socket_disconnected` will handle cleanup
     }
 
+    // Attach telemetry to websocket receiver
+    let receiver = sys.telemetry.attach_receiver(tx).await;
+
     // Process received messages until disconnect
     while let Some(result) = ws_rx.next().await {
         let msg = match result {
@@ -42,12 +47,12 @@ async fn socket_connected(ws: WebSocket) {
     }
 
     // Socket disconnected
-    socket_disconnected().await;
+    socket_disconnected(sys, receiver).await;
 }
 
 /// Socket has disconnected
-async fn socket_disconnected() {
-
+async fn socket_disconnected(sys: Sys, receiver: ReceiverIdentity) {
+    sys.telemetry.detach_receiver(receiver).await
 }
 
 /// Socket has received a message

@@ -3,6 +3,7 @@ use futures::{FutureExt, StreamExt};
 use warp::ws::{Ws, WebSocket, Message};
 use tokio::sync::mpsc;
 
+/// UI Websocket at /socket/ui
 pub fn ui_socket() -> impl Filter<Extract = impl Reply, Error = warp::Rejection> + Clone {
     warp::path!("socket" / "ui")
         .and(warp::ws())
@@ -11,6 +12,7 @@ pub fn ui_socket() -> impl Filter<Extract = impl Reply, Error = warp::Rejection>
         })
 }
 
+/// Socket has connected
 async fn socket_connected(ws: WebSocket) {
     let (ws_tx, mut ws_rx) = ws.split();
     let (tx, rx) = mpsc::unbounded_channel();
@@ -24,7 +26,7 @@ async fn socket_connected(ws: WebSocket) {
 
     // Send a message
     if let Err(_disconnected) = tx.send(Ok(Message::text("\"Hello, world!\""))) {
-        // do nothing
+        // do nothing - `socket_disconnected` will handle cleanup
     }
 
     // Process received messages until disconnect
@@ -36,17 +38,19 @@ async fn socket_connected(ws: WebSocket) {
                 break;
             }
         };
-        socket_message(&msg).await;
+        socket_received(&msg).await;
     }
 
     // Socket disconnected
     socket_disconnected().await;
 }
 
+/// Socket has disconnected
 async fn socket_disconnected() {
 
 }
 
-async fn socket_message(msg: &Message) {
+/// Socket has received a message
+async fn socket_received(_msg: &Message) {
 
 }

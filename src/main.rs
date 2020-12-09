@@ -1,8 +1,9 @@
 pub mod hardware;
-pub mod network;
+pub mod system;
 pub mod telemetry;
 pub mod web;
 
+pub const SYSTEM_TIME_INTERVAL: u64 = 60;
 pub static STATIC_PATH: &str = "../habux/dist";
 pub static WEB_LISTEN_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 8080);
 
@@ -12,11 +13,21 @@ async fn main() {
     std::env::set_var("RUST_LOG", "habctl=debug,warp=debug");
     pretty_env_logger::init();
 
-    log::debug!("starting up");
+    log::debug!("constructing system");
+
+    // Allocate state up-front and freely share the reference
+    let sys: &'static mut system::System = {
+        let the_system: system::System = Default::default();
+        let boxed_system = Box::new(the_system);
+        Box::leak(boxed_system)
+    };
+
+    log::debug!("starting server");
 
     // start services
     tokio::join!(
-        web::serve(WEB_LISTEN_ADDR),
+        web::serve(sys, WEB_LISTEN_ADDR),
+        sys.time.run(sys),
     );
 
     log::debug!("shutting down");

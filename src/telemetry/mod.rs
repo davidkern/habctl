@@ -11,7 +11,7 @@ pub mod time;
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Data {
     Empty,
-    Datetime(DateTime<Utc>),
+    SystemTime(DateTime<Utc>),
 }
 
 #[derive(Default)]

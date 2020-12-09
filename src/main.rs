@@ -3,6 +3,7 @@ pub mod system;
 pub mod telemetry;
 pub mod web;
 
+pub const SYSTEM_TIME_INTERVAL: u64 = 60;
 pub static STATIC_PATH: &str = "../habux/dist";
 pub static WEB_LISTEN_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 8080);
 

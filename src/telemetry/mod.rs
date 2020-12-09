@@ -52,10 +52,6 @@ impl Telemetry {
                 log::error!("failed transmitting telemetry to receiver #{}: {}", id, e);
             }
         }
-        //
-        // if let Err(e) = self.tx.as_ref().unwrap().send(serialized) {
-        //     log::error!("Failed transmitting data to receivers: {}", e);
-        // }
     }
 }
 

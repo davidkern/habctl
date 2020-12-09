@@ -1,5 +1,5 @@
 use warp::{Filter, Reply};
-use futures::{FutureExt, StreamExt};
+use futures::{StreamExt, SinkExt};
 use warp::ws::{Ws, WebSocket, Message};
 use tokio::sync::mpsc;
 use crate::system::Sys;
@@ -16,20 +16,17 @@ pub fn ui_socket(sys: Sys) -> impl Filter<Extract = impl Reply, Error = warp::Re
 
 /// Socket has connected
 async fn socket_connected(sys: Sys, ws: WebSocket) {
-    let (ws_tx, mut ws_rx) = ws.split();
-    let (tx, rx) = mpsc::unbounded_channel();
+    let (mut ws_tx, mut ws_rx) = ws.split();
+    let (tx, mut rx) = mpsc::unbounded_channel();
 
-    // Attach mpsc channel to `ws_tx` for sending telemetry
-    tokio::task::spawn(rx.forward(ws_tx).map(|result| {
-        if let Err(e) = result {
-            log::error!("websocket send error: {}", e);
-        }
-    }));
-
-    // Send a message
-    if let Err(_disconnected) = tx.send(Ok(Message::text("\"Hello, world!\""))) {
-        // do nothing - `socket_disconnected` will handle cleanup
-    }
+    // Send bytes received from rx as binary messages to ws_tx
+    tokio::task::spawn(async move {
+       while let Some(data) = rx.recv().await {
+           if let Err(e) = ws_tx.send(Message::binary(data)).await {
+               log::error!("websocket send error: {}", e);
+           }
+       }
+    });
 
     // Attach telemetry to websocket receiver
     let receiver = sys.telemetry.attach_receiver(tx).await;

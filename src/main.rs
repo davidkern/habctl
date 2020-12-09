@@ -1,5 +1,3 @@
-use crate::system::Sys;
-
 pub mod hardware;
 pub mod system;
 pub mod telemetry;
@@ -17,7 +15,7 @@ async fn main() {
     log::debug!("constructing system");
 
     // Allocate state up-front and freely share the reference
-    let sys: system::Sys = {
+    let sys: &'static mut system::System = {
         let the_system: system::System = Default::default();
         let boxed_system = Box::new(the_system);
         Box::leak(boxed_system)
@@ -28,6 +26,7 @@ async fn main() {
     // start services
     tokio::join!(
         web::serve(sys, WEB_LISTEN_ADDR),
+        sys.time.run(sys),
     );
 
     log::debug!("shutting down");

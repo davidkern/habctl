@@ -2,23 +2,32 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 use std::collections::HashMap;
-use warp::ws::Message;
+use serde::{Serialize, Deserialize};
+use chrono::{DateTime, Utc};
 
 pub mod solar;
+pub mod time;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Data {
+    Empty,
+    Datetime(DateTime<Utc>),
+}
 
 #[derive(Default)]
 pub struct Telemetry {
     receivers: Receivers,
+    //tx: Option<ReceiverChannel>,
 }
 
-pub type ReceiverChannel = mpsc::UnboundedSender<Result<Message, warp::Error>>;
+pub type ReceiverChannel = mpsc::UnboundedSender<Vec<u8>>;
 
 pub struct ReceiverIdentity(usize);
 
 impl Telemetry {
     pub async fn attach_receiver(&self, channel: ReceiverChannel) -> ReceiverIdentity {
         let id = NEXT_RECEIVER_ID.fetch_add(1, Ordering::Relaxed);
-        let receiver = Receiver::new(id, channel);
+        let receiver = Receiver::new(channel);
 
         self.receivers.write().await.insert(id, receiver);
 
@@ -32,20 +41,33 @@ impl Telemetry {
 
         log::debug!("Detached telemetry receiver #{}", identity.0);
     }
+
+    pub async fn transmit(&self, data: &Data) {
+        log::debug!("transmitting telemetry: {:?}", data);
+
+        let serialized = bincode::serialize(data).unwrap();
+
+        for (id, receiver) in self.receivers.read().await.iter() {
+            if let Err(e) = receiver.channel.send(serialized.to_owned()) {
+                log::error!("failed transmitting telemetry to receiver #{}: {}", id, e);
+            }
+        }
+        //
+        // if let Err(e) = self.tx.as_ref().unwrap().send(serialized) {
+        //     log::error!("Failed transmitting data to receivers: {}", e);
+        // }
+    }
 }
 
 static NEXT_RECEIVER_ID: AtomicUsize = AtomicUsize::new(1);
-//static RECEIVERS: Receivers = Receivers::default();
 
 struct Receiver {
-    id: usize,
     channel: ReceiverChannel,
 }
 
 impl Receiver {
-    fn new(id: usize, channel: ReceiverChannel) -> Self {
+    fn new(channel: ReceiverChannel) -> Self {
         Receiver {
-            id,
             channel,
         }
     }

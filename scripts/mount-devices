@@ -1,0 +1,2 @@
+#!/bin/sh
+socat tcp:10.42.0.1:13401 pty,link=/tmp/mppt-1,raw,echo=0,waitslave

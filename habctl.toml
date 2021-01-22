@@ -1,0 +1,7 @@
+# Development configuration
+
+[devices]
+
+[device.mmpt-1]
+path = "/tmp/mppt-1"
+protocol = "ve_direct"

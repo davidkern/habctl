@@ -8,6 +8,12 @@ This binary is built for a Linux SBC (currently running Debian).  The following 
 
 * libudev-dev - for serialport crate
 
+# Development
+
+Mount the Hab server's devices locally by running `sudo scripts/share-devices` on the server,
+and `scripts/mount-devices` on the development machine.  Devices will be mounted in `/tmp` and
+can be used for local development.
+
 ## License
 
 Licensed under either of

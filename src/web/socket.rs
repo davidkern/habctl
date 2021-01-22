@@ -11,5 +11,7 @@ pub fn ui_socket() -> impl Filter<Extract = impl Reply, Error = warp::Rejection>
 }
 
 /// Socket has connected
-async fn socket_connected(ws: WebSocket) {
+async fn socket_connected(_ws: WebSocket) {
+    // send most recent telemetry
+    // then new telemetry as it comes in
 }

@@ -33,24 +33,37 @@
 //     log::debug!("shutting down");
 // }
 
+mod config;
 mod hardware;
 mod web;
+
+use anyhow::Result;
+use tokio::runtime::Runtime;
+
+use crate::config::Config;
 
 pub static STATIC_PATH: &str = "../habux/dist";
 pub static WEB_LISTEN_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 8080);
 
-#[tokio::main]
-async fn main() {
-    // log configuration
-    std::env::set_var("RUST_LOG", "habctl=debug,warp=debug");
-    pretty_env_logger::init();
+fn main() -> Result<()> {
+    let rt = Runtime::new()?;
 
-    log::debug!("starting services");
+    rt.block_on(async {
+        // log configuration
+        std::env::set_var("RUST_LOG", "habctl=debug,warp=debug");
+        pretty_env_logger::init();
 
-    tokio::join!(
-        web::serve(WEB_LISTEN_ADDR),
-    );
+        log::debug!("loading config");
+        Config::load()?;
+        dbg!(Config::get());
 
-    log::debug!("exiting");
+        log::debug!("starting services");
+        tokio::try_join!(
+            web::serve(WEB_LISTEN_ADDR),
+        )?;
+
+        log::debug!("exiting");
+        Ok( () )
+    })
 }
 

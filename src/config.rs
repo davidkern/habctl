@@ -3,27 +3,17 @@
 use anyhow::{Result, Error};
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
-use std::collections::HashMap;
 
 
 static INSTANCE: OnceCell<Config> = OnceCell::new();
 
+/// Global configuration
 #[derive(Deserialize, Debug)]
 pub struct Config {
-    name: String,
-    devices: HashMap<String, Device>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct Device {
-    path: String,
-    protocol: Protocol,
-}
-
-#[derive(Deserialize, Debug)]
-pub enum Protocol {
-    VictronVEDirect,
-    VictronMk3,
+    #[serde(skip, default)]
+    pub build: Build,
+    pub hardware: crate::hardware::config::Hardware,
+    pub web: crate::web::config::Web,
 }
 
 impl Config {
@@ -43,4 +33,20 @@ impl Config {
     pub fn get() -> &'static Config {
         INSTANCE.get().expect("config not loaded")
     }    
+}
+
+/// Configuration captured at build time
+#[derive(Debug)]
+pub struct Build {
+    pub name: &'static str,
+    pub version: &'static str,
+}
+
+impl Default for Build {
+    fn default() -> Self {
+        Self {
+            name: env!("CARGO_PKG_NAME"),
+            version: env!("CARGO_PKG_VERSION"),
+        }
+    }
 }

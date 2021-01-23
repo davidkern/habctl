@@ -1,3 +1,5 @@
+pub mod config;
+
 mod files;
 mod socket;
 

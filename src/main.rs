@@ -42,9 +42,6 @@ use tokio::runtime::Runtime;
 
 use crate::config::Config;
 
-pub static STATIC_PATH: &str = "../habux/dist";
-pub static WEB_LISTEN_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 8080);
-
 fn main() -> Result<()> {
     let rt = Runtime::new()?;
 
@@ -59,7 +56,7 @@ fn main() -> Result<()> {
 
         log::debug!("starting services");
         tokio::try_join!(
-            web::serve(WEB_LISTEN_ADDR),
+            web::serve(Config::get().web.listen_addr),
         )?;
 
         log::debug!("exiting");

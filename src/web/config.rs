@@ -3,10 +3,15 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct Web {
+    /// Path to the static files
     pub static_path: String,
 
+    /// Server listen address, e.g. "0.0.0.0:8080"
     #[serde(with = "de_listen_addr")]
     pub listen_addr: ListenAddr,
+
+    /// Update interval, in milliseconds
+    pub update_interval: u64,
 }
 
 pub type ListenAddr = ([u8; 4], u16);

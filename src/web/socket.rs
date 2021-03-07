@@ -1,58 +1,49 @@
-use warp::{Filter, Reply};
+use chrono::{DateTime, Utc};
 use futures::{StreamExt, SinkExt};
+use serde::{Serialize, Deserialize};
+use tokio::time::{self, Duration};
+use warp::{Filter, Reply};
 use warp::ws::{Ws, WebSocket, Message};
-use tokio::sync::mpsc;
-use crate::system::Sys;
-use crate::telemetry::ReceiverIdentity;
+
+use crate::config::Config;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Data {
+    Empty,
+    SystemTime(DateTime<Utc>),
+}
 
 /// UI Websocket at /socket/ui
-pub fn ui_socket(sys: Sys) -> impl Filter<Extract = impl Reply, Error = warp::Rejection> + Clone {
+pub fn ui_socket() -> impl Filter<Extract = impl Reply, Error = warp::Rejection> + Clone {
     warp::path!("socket" / "ui")
         .and(warp::ws())
         .map(move |ws: Ws| {
-            ws.on_upgrade(move |socket| socket_connected(sys, socket))
+            ws.on_upgrade(move |socket| socket_connected(socket))
         })
 }
 
 /// Socket has connected
-async fn socket_connected(sys: Sys, ws: WebSocket) {
-    let (mut ws_tx, mut ws_rx) = ws.split();
-    let (tx, mut rx) = mpsc::unbounded_channel();
+async fn socket_connected(ws: WebSocket) {
+    let (mut ws_send, mut ws_recv) = ws.split();
 
-    // Send bytes received from rx as binary messages to ws_tx
-    tokio::task::spawn(async move {
-       while let Some(data) = rx.recv().await {
-           if let Err(e) = ws_tx.send(Message::binary(data)).await {
-               log::error!("websocket send error: {}", e);
-           }
-       }
+    // handle messages from the web client
+    tokio::spawn(async move {
+        while let Some(msg) = ws_recv.next().await {
+            log::debug!("Received {:?}", msg);
+        }
+        log::debug!("Exiting receive task");
     });
 
-    // Attach telemetry to websocket receiver
-    let receiver = sys.telemetry.attach_receiver(tx).await;
+    // periodically send telemetry until disconnected
+    let mut interval = time::interval(Duration::from_millis(Config::get().web.update_interval));
+    loop {
+        // send telemetry, exiting handler on error
+        let msg = Data::SystemTime(Utc::now());
+        if let Err(e) = ws_send.send(Message::binary(bincode::serialize(&msg).unwrap())).await {
+            log::debug!("Exiting send task: {:?}", e);
+            break;
+        }
 
-    // Process received messages until disconnect
-    while let Some(result) = ws_rx.next().await {
-        let msg = match result {
-            Ok(m) => m,
-            Err(e) => {
-                log::error!("websocket error: {}", e);
-                break;
-            }
-        };
-        socket_received(&msg).await;
+        interval.tick().await;
     }
-
-    // Socket disconnected
-    socket_disconnected(sys, receiver).await;
-}
-
-/// Socket has disconnected
-async fn socket_disconnected(sys: Sys, receiver: ReceiverIdentity) {
-    sys.telemetry.detach_receiver(receiver).await
-}
-
-/// Socket has received a message
-async fn socket_received(_msg: &Message) {
-
 }

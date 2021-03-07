@@ -1,4 +1,5 @@
 //! Physical interfaces
 
-pub mod serial;
+pub mod config;
 pub mod victron;
+

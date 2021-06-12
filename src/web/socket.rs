@@ -1,9 +1,9 @@
 use chrono::{DateTime, Utc};
-use futures::{StreamExt, SinkExt};
-use serde::{Serialize, Deserialize};
+use futures::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
 use tokio::time::{self, Duration};
+use warp::ws::{Message, WebSocket, Ws};
 use warp::{Filter, Reply};
-use warp::ws::{Ws, WebSocket, Message};
 
 use crate::config::Config;
 
@@ -17,9 +17,7 @@ pub enum Data {
 pub fn ui_socket() -> impl Filter<Extract = impl Reply, Error = warp::Rejection> + Clone {
     warp::path!("socket" / "ui")
         .and(warp::ws())
-        .map(move |ws: Ws| {
-            ws.on_upgrade(move |socket| socket_connected(socket))
-        })
+        .map(move |ws: Ws| ws.on_upgrade(move |socket| socket_connected(socket)))
 }
 
 /// Socket has connected
@@ -39,7 +37,10 @@ async fn socket_connected(ws: WebSocket) {
     loop {
         // send telemetry, exiting handler on error
         let msg = Data::SystemTime(Utc::now());
-        if let Err(e) = ws_send.send(Message::binary(bincode::serialize(&msg).unwrap())).await {
+        if let Err(e) = ws_send
+            .send(Message::binary(bincode::serialize(&msg).unwrap()))
+            .await
+        {
             log::debug!("Exiting send task: {:?}", e);
             break;
         }

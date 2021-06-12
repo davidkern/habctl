@@ -11,14 +11,19 @@ description = "HAB truck camper backend services."
 anyhow = "1.0.38"
 bincode = "1.3.2"
 bitflags = "1.2.1"
+bytes = "1.0.1"
 chrono = { version = "0.4.19", features = ["serde"] }
+circular = "0.3.0"
+combine = "4.5.2"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 log = "0.4.13"
-mio-serial = "3.3.1"
-nom = "6.1.2"
 once_cell = "1.5.2"
 pretty_env_logger = "0.4.0"
 serde = { version = "1.0.124", features = ["derive"] }
+serial-io = { version = "0.3", features = ["tokio"] }
 tokio = { version = "1.0.2", features = ["full"] }
+tokio-serial = "4.3.3"
+tokio-stream = "0.1"
+tokio-util = "0.6.7"
 toml = "0.5.8"
 warp = "0.3.0"

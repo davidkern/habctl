@@ -1,271 +1,419 @@
 //! Victron VE-Direct interface
+use anyhow::Result;
+use bytes::{Buf, BytesMut};
+use std::path::Path;
+use serial_io::{build, AsyncSerial};
+use std::time::Duration;
+use tokio_util::codec::{Decoder, FramedRead};
+use std::str;
+use combine::{
+    error::{ParseError, StreamError},
+    parser::{
+        byte::digit,
+        combinator::{any_partial_state, AnyPartialState},
+        range::{range, recognize, take},
+    },
+    skip_many, skip_many1,
+    stream::{easy, PartialStream, RangeStream, StreamErrorFor},
+    Parser,
+};
+use std::num::Wrapping;
 
-pub trait Description {
-    fn description(&self) -> &str;
+/// Process data from a VeDirect device
+pub async fn ve_direct_mppt(path: &str) -> Result<()> {
+    let builder = build(path, 19200);
+    let mut serial = AsyncSerial::from_builder(&builder)?;
+
+    Ok(())
 }
 
-pub enum Measurement {
-    /// Channel 1 voltage (mV)
-    V(u32),
-
-    /// Channel 2 voltage (mV)
-    V2(u32),
-
-    /// Channel 3 voltage (mV)
-    V3(u32),
-
-    /// Auxillary voltage (mV)
-    Vs(u32),
-
-    /// Mid-point voltage (mV)
-    Vm(u32),
-
-    /// Mid-point deviation (%)
-    Dm(u8),
-
-    /// Panel voltage (mV)
-    Vpv(u32),
-
-    /// Panel power (W)
-    Ppv(u32),
-
-    /// Channel 1 current (mA): >0 charging, <0 discharging
-    I(i32),
-
-    /// Channel 2 current (mA)
-    I2(i32),
-
-    /// Channel 3 current (mA)
-    I3(i32),
-
-    /// Load current (mA)
-    Il(i32),
-
-    /// Load status
-    Load(bool),
-
-    /// Battery temperature (deg C)
-    T(i16),
-
-    /// Instantaneous power (W)
-    P(u32),
-
-    /// Consumed mAhr
-    Ce(u32),
-
-    /// State of charge (%)
-    Soc(u8),
-
-    /// Time to go (minutes)
-    Ttg(u16),
-
-    /// Alarm state
-    Alarm(bool),
-
-    /// Relay state
-    Relay(bool),
-
-    /// Alarm reason
-    Ar(AlarmReason),
-
-    /// Off reason
-    Or(OffReason),
-
-    /// Depth of deepest discharge (mAhr)
-    H1(u32),
-
-    /// Depth of last discharge (mAhr)
-    H2(u32),
-
-    /// Depth of average discharge (mAhr)
-    H3(u32),
-
-    /// Charge cycle count
-    H4(u32),
-
-    /// Discharge count
-    H5(u32),
-
-    /// Cummulative draw (mAhr)
-    H6(u32),
-
-    /// Minimum main battery voltage (mV)
-    H7(u16),
-
-    /// Maximum main battery voltage (mV)
-    H8(u16),
-
-    /// Seconds since last full charge
-    H9(u32),
-
-    /// Automatic sync count
-    H10(u32),
-
-    /// Low main voltage alarm count
-    H11(u32),
-
-    /// High main voltage alarm count
-    H12(u32),
-
-    /// Low aux voltage alarm count
-    H13(u32),
-
-    /// High aux voltage alarm count
-    H14(u32),
-
-    /// Minimum aux voltage (mV)
-    H15(u16),
-
-    /// Maximum aux voltage (mV)
-    H16(u16),
-
-    /// Amount discharged (10W)
-    H17(u32),
-
-    /// Amount charged (10W)
-    H18(u32),
-
-    /// Yield total, resettable (10W)
-    H19(u32),
-
-    /// Yield today (10W)
-    H20(u32),
-
-    /// Maximum power today (W)
-    H21(u16),
-
-    /// Yield yesterday (10W)
-    H22(u32),
-
-    /// Maximum power yesterday (W)
-    H23(u16),
-
-    /// Error code
-    Err(ErrorCode),
-
-    /// Operating status
-    Cs(StateOfOperation),
-
-    /// Deprecated model description
-    Bmv,
-
-    /// Firmware version. Whole number, potentially prefixed by a letter
-    Fw([u8; 4]),
-
-    /// Firmware version. up to 6 digits, optional left 0 padding
-    Fwe([u8; 6]),
-
-    /// Product Id
-    Pid(Pid),
-
-    /// Serial number
-    /// LLYYMMSSSSS - LL location, YYWW production data, SSSSS unique id
-    Ser([u8; 11]),
-
-    /// Historical day sequence number 0..364
-    Hsds(u16),
-
-    /// Device Mode
-    Mode(Mode),
-
-    /// AC output voltage (0.01V)
-    AcOutV(u32),
-
-    /// AC output current (0.1A)
-    AcOutI(u32),
-
-    /// AC output apparent power (VA)
-    AcOutS(u32),
-
-    /// Warning reason
-    Warn(AlarmReason),
-
-    /// Mppt Status
-    Mppt(Mppt),
+pub struct VeDirectMpptDecoder {
+    state: State,
 }
 
-impl Description for Measurement {
-    fn description(&self) -> &str {
-        match self {
-            Self::V(_) => "Main or channel 1 (battery) voltage",
-            Self::V2(_) => "Channel 2 (battery) voltage",
-            Self::V3(_) => "Channel 3 (battery) voltage",
-            Self::Vs(_) => "Auxiliary (starter) voltage",
-            Self::Vm(_) => "Mid-point voltage of the battery bank",
-            Self::Dm(_) => "Mid-point deviation of the battery bank",
-            Self::Vpv(_) => "Panel voltage",
-            Self::Ppv(_) => "Panel power",
-            Self::I(_) => "Main or channel 1 battery current",
-            Self::I2(_) => "Channel 2 battery current",
-            Self::I3(_) => "Channel 3 battery current",
-            Self::Il(_) => "Load current",
-            Self::Load(_) => "Load output state (ON/OFF)",
-            Self::T(_) => "Battery temperature",
-            Self::P(_) => "Instantaneous power",
-            Self::Ce(_) => "Consumed Amp Hours",
-            Self::Soc(_) => "State-of-charge",
-            Self::Ttg(_) => "Time-to-go",
-            Self::Alarm(_) => "Alarm condition active",
-            Self::Relay(_) => "Relay state",
-            Self::Ar(_) => "Alarm reason",
-            Self::Or(_) => "Off reason",
-            Self::H1(_) => "Depth of the deepest discharge",
-            Self::H2(_) => "Depth of the last discharge",
-            Self::H3(_) => "Depth of the average discharge",
-            Self::H4(_) => "Number of charge cycles",
-            Self::H5(_) => "Number of full discharges",
-            Self::H6(_) => "Cumulative Amp Hours drawn",
-            Self::H7(_) => "Minimum main (battery) voltage",
-            Self::H8(_) => "Maximum main (battery) voltage",
-            Self::H9(_) => "Number of seconds since last full charge",
-            Self::H10(_) => "Number of automatic synchronizations",
-            Self::H11(_) => "Number of low main voltage alarms",
-            Self::H12(_) => "Number of high main voltage alarms",
-            Self::H13(_) => "Number of low auxiliary voltage alarms",
-            Self::H14(_) => "Number of high auxiliary voltage alarms",
-            Self::H15(_) => "Minimum auxiliary (battery) voltage",
-            Self::H16(_) => "Maximum auxiliary (battery) voltage",
-            Self::H17(_) => "Amount of discharged energy",
-            Self::H18(_) => "Amount of charged energy",
-            Self::H19(_) => "Yield total (user resettable counter)",
-            Self::H20(_) => "Yield today",
-            Self::H21(_) => "Maximum power today",
-            Self::H22(_) => "Yield yesterday",
-            Self::H23(_) => "Maximum power yesterday",
-            Self::Err(_) => "Error code",
-            Self::Cs(_) => "State of operation",
-            Self::Bmv => "Model description (deprecated)",
-            Self::Fw(_) => "Firmware version (16 bit)",
-            Self::Fwe(_) => "Firmware version (24 bit)",
-            Self::Pid(_) => "Product ID",
-            Self::Ser(_) => "Serial number",
-            Self::Hsds(_) => "Day sequence number (0..364)",
-            Self::Mode(_) => "Device mode",
-            Self::AcOutV(_) => "AC output voltage",
-            Self::AcOutI(_) => "AC output current",
-            Self::AcOutS(_) => "AC output apparent power",
-            Self::Warn(_) => "Warning reason",
-            Self::Mppt(_) => "Tracker operation mode",    
-        }
+impl Default for VeDirectMpptDecoder {
+    fn default() -> Self {
+        Self { state: State::Unsynchronized }
     }
 }
 
-bitflags! {
-    pub struct AlarmReason: u32 {
-        const LOW_VOLTAGE = 1;
-        const HIGH_VOLTAGE = 2;
-        const LOW_SOC = 4;
-        const LOW_STARTER_VOLTAGE = 8;
-        const HIGH_STARTER_VOLTAGE = 16;
-        const LOW_TEMPERATURE = 32;
-        const HIGH_TEMPERATURE = 64;
-        const MID_VOLTAGE = 128;
-        const OVERLOAD = 256;
-        const DC_RIPPLE = 512;
-        const LOW_V_AC_OUT = 1024;
-        const HIGH_V_AC_OUT = 2048;
-        const SHORT_CIRCUIT = 4096;
-        const BMS_LOCKOUT = 8192;
+struct Cursor<'a> {
+    point: usize,
+    bytes: &'a mut BytesMut,
+    checksum: Wrapping<u8>,
+}
+
+impl<'a> Cursor<'a> {
+    fn new(bytes: &'a mut BytesMut) -> Self {
+        Self { point: 0, bytes, checksum: Wrapping(0) }
+    }
+
+    fn byte(&mut self) -> Option<&u8> {
+        let point = self.point;
+        self.point += 1;
+        if let Some(byte) = self.bytes.get(point) {
+            self.checksum += Wrapping(*byte);
+            Some(byte)
+        } else {
+            None
+        }
+    }
+
+    fn read_until(&mut self, pattern: &[u8]) -> Option<Vec<u8>> {
+        let mut output = Vec::new();
+        let mut idx = 0;
+        let len = pattern.len();
+        let mut checksum = Wrapping(0u8);
+
+        if len == 0 { return None }
+
+        loop {
+            if idx == len {
+                // success
+                self.checksum += checksum;
+                break Some(output)
+            }
+
+            if let Some(byte) = self.bytes.get(self.point + idx) {
+
+                if Some(byte) == pattern.get(idx) {
+                    // matching, advance the index
+                    idx += 1;
+                    checksum += Wrapping(*byte);
+                } else {
+                    // failed, move point and reset index
+                    output.push(*byte);
+                    self.point += 1;
+                    idx = 0;
+                    checksum = Wrapping(0u8);
+                }
+            } else {
+                // out of input
+                break None
+            }
+        }
+    }
+
+    fn consume_to_point(&mut self) {
+        self.bytes.advance(self.point);
+    }
+
+    fn clear_checksum(&mut self) {
+        self.checksum = Wrapping(0u8);
+    }
+
+    fn is_checksum_valid(&mut self) -> bool {
+        self.checksum.0 == 0
+    }
+}
+
+enum State {
+    Unsynchronized,
+    Crlf,
+    Name,
+    Tab,
+    Value,
+}
+
+#[derive(Default)]
+pub struct MpptFrame {
+    /// V: Battery voltage (mV)
+    battery_voltage: Option<u32>,
+
+    /// VPV: Panel voltage (mV)
+    panel_voltage: Option<u32>,
+
+    /// PPV: Panel power (W)
+    panel_power: Option<u32>,
+
+    /// I: Battery current (mA): >0 charging, <0 discharging
+    battery_current: Option<i32>,
+
+    /// IL: Load current (mA)
+    load_current: Option<i32>,
+
+    /// LOAD: Load status
+    load_state: Option<bool>,
+
+    /// RELAY: Relay state
+    relay_state: Option<bool>,
+
+    /// OR: Off reason
+    off_reason: Option<OffReason>,
+
+    /// H19: Yield total, resettable (10W)
+    yield_total: Option<u32>,
+
+    /// H20: Yield today (10W)
+    yield_today: Option<u16>,
+
+    /// H21: Maximum power today (W)
+    maximum_power_today: Option<u16>,
+
+    /// H22: Yield yesterday (10W)
+    yield_yesterday: Option<u16>,
+
+    /// H23: Maximum power yesterday (W)
+    maximum_power_yesterday: Option<u16>,
+
+    /// ERR: Error code
+    error: Option<ErrorCode>,
+
+    /// CS: Operating status
+    state: Option<StateOfOperation>,
+
+    /// FW: Firmware version. Whole number, potentially prefixed by a letter
+    firmware_version: Option<String>,
+
+    /// PID: Product Id
+    product_id: Option<u32>,
+
+    /// SER#: Serial number
+    /// LLYYMMSSSSS - LL location, YYWW production data, SSSSS unique id
+    serial_number: Option<String>,
+
+    /// HSDS: Historical day sequence number 0..364
+    day_number: Option<u16>,
+
+    /// MPPT: Mppt Status
+    mppt_status: Option<Mppt>,
+}
+
+impl Decoder for VeDirectMpptDecoder {
+    type Item = MpptFrame;
+    type Error = Box<dyn std::error::Error + Send + Sync>;
+
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        let mut cursor = Cursor::new(src);
+        let mut name = String::new(); 
+        let mut frame = MpptFrame::default();
+
+        loop {
+            match self.state {
+                State::Unsynchronized => {
+                    if cursor.read_until(b"\r\n").is_none() {
+                        cursor.consume_to_point();
+                        return Ok(None)
+                    };
+    
+                    cursor.clear_checksum();
+
+                    self.state = State::Crlf;
+                },
+    
+                State::Crlf => {
+                    if cursor.byte() != Some(&0x0a) {
+                        self.state = State::Unsynchronized;
+                        continue;
+                    }
+
+                    if cursor.byte() != Some(&0x0d) {
+                        self.state = State::Unsynchronized;
+                        continue;
+                    }
+
+                    self.state = State::Name;
+                },
+
+                State::Name => {
+                    if let Some(name_bytes) = cursor.read_until(b"\t") {
+                        match std::str::from_utf8(&name_bytes) {
+                            Ok(n) => {
+                                name = n.to_string();
+                                self.state = State::Tab;
+                            },
+                            Err(_) => {
+                                self.state = State::Unsynchronized;
+                            }
+                        }
+                        continue;
+                    } else {
+                        break Ok(None)
+                    }
+                },
+
+                State::Tab => {
+                    if let Some(tab) = cursor.byte() {
+                        self.state = State::Value;
+                        continue;
+                    } else {
+                        break Ok(None)
+                    }
+                },
+
+                State::Value => {
+                    if let Some(value) = cursor.read_until(b"\r\n") {
+                        match name.as_str() {
+                            "V" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u32::from_str_radix(&value_str[2..], 16) {
+                                        frame.battery_voltage = Some(v);
+                                    }    
+                                }
+                            },
+                            "VPV" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u32::from_str_radix(&value_str, 10) {
+                                        frame.panel_voltage = Some(v);
+                                    }    
+                                }
+                            },
+                            "PPV" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u32::from_str_radix(&value_str, 10) {
+                                        frame.panel_power = Some(v);
+                                    }
+                                }
+                            },
+                            "I" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = i32::from_str_radix(&value_str, 10) {
+                                        frame.battery_current = Some(v);
+                                    }
+                                }
+                            },
+                            "IL" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = i32::from_str_radix(&value_str, 10) {
+                                        frame.load_current = Some(v);
+                                    }
+                                }  
+                            },
+                            "LOAD" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if value_str == "ON" {
+                                        frame.load_state = Some(true);
+                                    } else if value_str == "OFF" {
+                                        frame.load_state = Some(false);
+                                    }
+                                }
+                            },
+                            "RELAY" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if value_str == "ON" {
+                                        frame.relay_state = Some(true);
+                                    } else if value_str == "OFF" {
+                                        frame.relay_state = Some(false);
+                                    }
+                                }
+                            },
+                            "OR" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u32::from_str_radix(&value_str[2..], 16) {
+                                        if let Some(or) = OffReason::from_bits(v) {
+                                            frame.off_reason = Some(or);
+                                        }
+                                    }
+                                }  
+                            },
+                            "H19" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u32::from_str_radix(&value_str, 10) {
+                                        frame.yield_total = Some(v);
+                                    }
+                                }                                  
+                            },
+                            "H20" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u16::from_str_radix(&value_str, 10) {
+                                        frame.yield_today = Some(v);
+                                    }
+                                }  
+                            },
+                            "H21" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u16::from_str_radix(&value_str, 10) {
+                                        frame.maximum_power_today = Some(v);
+                                    }
+                                }  
+                            },
+                            "H22" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u16::from_str_radix(&value_str, 10) {
+                                        frame.yield_yesterday = Some(v);
+                                    }
+                                }  
+                            },
+                            "H23" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u16::from_str_radix(&value_str, 10) {
+                                        frame.maximum_power_yesterday = Some(v);
+                                    }
+                                }  
+                            },
+                            "ERR" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u32::from_str_radix(&value_str, 10) {
+                                        if let Some(err) = ErrorCode::from_u32(v) {
+                                            frame.error = Some(err);
+                                        }
+                                    }
+                                }
+                            },
+                            "CS" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u32::from_str_radix(&value_str, 10) {
+                                        if let Some(cs) = StateOfOperation::from_u32(v) {
+                                            frame.state = Some(cs);
+                                        }
+                                    }
+                                }
+                            },
+                            "FW" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    frame.firmware_version = Some(String::from(value_str));
+                                }
+                            },
+                            "PID" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u32::from_str_radix(&value_str[2..], 16) {
+                                        frame.product_id = Some(v);
+                                    }
+                                }
+                            },
+                            "SER#" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    frame.serial_number = Some(String::from(value_str));
+                                }
+                            },
+                            "HSDS" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u16::from_str_radix(&value_str, 10) {
+                                        frame.day_number = Some(v);
+                                    }
+                                }
+                            },
+                            "MPPT" => {
+                                if let Ok(value_str) = str::from_utf8(&value) {
+                                    if let Ok(v) = u32::from_str_radix(&value_str, 10) {
+                                        if let Some(mppt) = Mppt::from_u32(v) {
+                                            frame.mppt_status = Some(mppt);
+                                        }
+                                    }
+                                }
+                            },
+                            "Checksum" => {
+                                if cursor.is_checksum_valid() {
+                                    self.state = State::Crlf;
+                                    break Ok(Some(frame))
+                                } else {
+                                    self.state = State::Unsynchronized;
+                                    continue;
+                                }
+                            },
+                            _ => {
+                                self.state = State::Unsynchronized;
+                                continue;
+                            },
+                        }
+                        self.state = State::Crlf;
+                        continue;
+                    } else {
+                        break Ok(None)
+                    }
+                }
+            }    
+        }
     }
 }
 
@@ -283,200 +431,138 @@ bitflags! {
     }
 }
 
-pub struct Pid(u32);
+#[derive(Debug)]
+pub enum StateOfOperation {
+    Off,
+    LowPower,
+    Fault,
+    Bulk,
+    Absorption,
+    Float,
+    Storage,
+    Equalize,
+    Inverting,
+    PowerSupply,
+    StartingUp,
+    RepeatedAbsorption,
+    AutoEqualize,
+    BatterySafe,
+    ExternalControl,
+}
 
-impl Description for Pid {
-    fn description(&self) -> &str {
-        match self.0 {
-            0x203 => "BMV-700",
-            0x204 => "BMV-702",
-            0x205 => "BMV-700H",
-            0x0300 => "BlueSolar MPPT 70|15*",
-            0xA040 => "BlueSolar MPPT 75|50*",
-            0xA041 => "BlueSolar MPPT 150|35*",
-            0xA042 => "BlueSolar MPPT 75|15",
-            0xA043 => "BlueSolar MPPT 100|15",
-            0xA044 => "BlueSolar MPPT 100|30*",
-            0xA045 => "BlueSolar MPPT 100|50*",
-            0xA046 => "BlueSolar MPPT 150|70",
-            0xA047 => "BlueSolar MPPT 150|100",
-            0xA049 => "BlueSolar MPPT 100|50 rev2",
-            0xA04A => "BlueSolar MPPT 100|30 rev2",
-            0xA04B => "BlueSolar MPPT 150|35 rev2",
-            0xA04C => "BlueSolar MPPT 75|10",
-            0xA04D => "BlueSolar MPPT 150|45",
-            0xA04E => "BlueSolar MPPT 150|60",
-            0xA04F => "BlueSolar MPPT 150|85",
-            0xA050 => "SmartSolar MPPT 250|100",
-            0xA051 => "SmartSolar MPPT 150|100*",
-            0xA052 => "SmartSolar MPPT 150|85*",
-            0xA053 => "SmartSolar MPPT 75|15",
-            0xA054 => "SmartSolar MPPT 75|10",
-            0xA055 => "SmartSolar MPPT 100|15",
-            0xA056 => "SmartSolar MPPT 100|30",
-            0xA057 => "SmartSolar MPPT 100|50",
-            0xA058 => "SmartSolar MPPT 150|35",
-            0xA059 => "SmartSolar MPPT 150|100 rev2",
-            0xA05A => "SmartSolar MPPT 150|85 rev2",
-            0xA05B => "SmartSolar MPPT 250|70",
-            0xA05C => "SmartSolar MPPT 250|85",
-            0xA05D => "SmartSolar MPPT 250|60",
-            0xA05E => "SmartSolar MPPT 250|45",
-            0xA05F => "SmartSolar MPPT 100|20",
-            0xA060 => "SmartSolar MPPT 100|20 48V",
-            0xA061 => "SmartSolar MPPT 150|45",
-            0xA062 => "SmartSolar MPPT 150|60",
-            0xA063 => "SmartSolar MPPT 150|70",
-            0xA064 => "SmartSolar MPPT 250|85 rev2",
-            0xA065 => "SmartSolar MPPT 250|100 rev2",
-            0xA066 => "BlueSolar MPPT 100|20",
-            0xA067 => "BlueSolar MPPT 100|20 48V",
-            0xA068 => "SmartSolar MPPT 250|60 rev2",
-            0xA069 => "SmartSolar MPPT 250|70 rev2",
-            0xA06A => "SmartSolar MPPT 150|45 rev2",
-            0xA06B => "SmartSolar MPPT 150|60 rev2",
-            0xA06C => "SmartSolar MPPT 150|70 rev2",
-            0xA06D => "SmartSolar MPPT 150|85 rev3",
-            0xA06E => "SmartSolar MPPT 150|100 rev3",
-            0xA06F => "BlueSolar MPPT 150|45 rev2",
-            0xA070 => "BlueSolar MPPT 150|60 rev2",
-            0xA071 => "BlueSolar MPPT 150|70 rev2",
-            0xA102 => "SmartSolar MPPT VE.Can 150/70",
-            0xA103 => "SmartSolar MPPT VE.Can 150/45",
-            0xA104 => "SmartSolar MPPT VE.Can 150/60",
-            0xA105 => "SmartSolar MPPT VE.Can 150/85",
-            0xA106 => "SmartSolar MPPT VE.Can 150/100",
-            0xA107 => "SmartSolar MPPT VE.Can 250/45",
-            0xA108 => "SmartSolar MPPT VE.Can 250/60",
-            0xA109 => "SmartSolar MPPT VE.Can 250/70",
-            0xA10A => "SmartSolar MPPT VE.Can 250/85",
-            0xA10B => "SmartSolar MPPT VE.Can 250/100",
-            0xA10C => "SmartSolar MPPT VE.Can 150/70 rev2",
-            0xA10D => "SmartSolar MPPT VE.Can 150/85 rev2",
-            0xA10E => "SmartSolar MPPT VE.Can 150/100 rev2",
-            0xA10F => "BlueSolar MPPT VE.Can 150/100",
-            0xA112 => "BlueSolar MPPT VE.Can 250/70",
-            0xA113 => "BlueSolar MPPT VE.Can 250/100",
-            0xA114 => "SmartSolar MPPT VE.Can 250/70 rev2",
-            0xA115 => "SmartSolar MPPT VE.Can 250/100 rev2",
-            0xA116 => "SmartSolar MPPT VE.Can 250/85 rev2",
-            0xA201 => "Phoenix Inverter 12V 250VA 230V*",
-            0xA202 => "Phoenix Inverter 24V 250VA 230V*",
-            0xA204 => "Phoenix Inverter 48V 250VA 230V*",
-            0xA211 => "Phoenix Inverter 12V 375VA 230V*",
-            0xA212 => "Phoenix Inverter 24V 375VA 230V*",
-            0xA214 => "Phoenix Inverter 48V 375VA 230V*",
-            0xA221 => "Phoenix Inverter 12V 500VA 230V*",
-            0xA222 => "Phoenix Inverter 24V 500VA 230V*",
-            0xA224 => "Phoenix Inverter 48V 500VA 230V*",
-            0xA231 => "Phoenix Inverter 12V 250VA 230V",
-            0xA232 => "Phoenix Inverter 24V 250VA 230V",
-            0xA234 => "Phoenix Inverter 48V 250VA 230V",
-            0xA239 => "Phoenix Inverter 12V 250VA 120V",
-            0xA23A => "Phoenix Inverter 24V 250VA 120V",
-            0xA23C => "Phoenix Inverter 48V 250VA 120V",
-            0xA241 => "Phoenix Inverter 12V 375VA 230V",
-            0xA242 => "Phoenix Inverter 24V 375VA 230V",
-            0xA244 => "Phoenix Inverter 48V 375VA 230V",
-            0xA249 => "Phoenix Inverter 12V 375VA 120V",
-            0xA24A => "Phoenix Inverter 24V 375VA 120V",
-            0xA24C => "Phoenix Inverter 48V 375VA 120V",
-            0xA251 => "Phoenix Inverter 12V 500VA 230V",
-            0xA252 => "Phoenix Inverter 24V 500VA 230V",
-            0xA254 => "Phoenix Inverter 48V 500VA 230V",
-            0xA259 => "Phoenix Inverter 12V 500VA 120V",
-            0xA25A => "Phoenix Inverter 24V 500VA 120V",
-            0xA25C => "Phoenix Inverter 48V 500VA 120V",
-            0xA261 => "Phoenix Inverter 12V 800VA 230V",
-            0xA262 => "Phoenix Inverter 24V 800VA 230V",
-            0xA264 => "Phoenix Inverter 48V 800VA 230V",
-            0xA269 => "Phoenix Inverter 12V 800VA 120V",
-            0xA26A => "Phoenix Inverter 24V 800VA 120V",
-            0xA26C => "Phoenix Inverter 48V 800VA 120V",
-            0xA271 => "Phoenix Inverter 12V 1200VA 230V",
-            0xA272 => "Phoenix Inverter 24V 1200VA 230V",
-            0xA274 => "Phoenix Inverter 48V 1200VA 230V",
-            0xA279 => "Phoenix Inverter 12V 1200VA 120V",
-            0xA27A => "Phoenix Inverter 24V 1200VA 120V",
-            0xA27C => "Phoenix Inverter 48V 1200VA 120V",
-            0xA281 => "Phoenix Inverter 12V 1600VA 230V",
-            0xA282 => "Phoenix Inverter 24V 1600VA 230V",
-            0xA284 => "Phoenix Inverter 48V 1600VA 230V",
-            0xA291 => "Phoenix Inverter 12V 2000VA 230V",
-            0xA292 => "Phoenix Inverter 24V 2000VA 230V",
-            0xA294 => "Phoenix Inverter 48V 2000VA 230V",
-            0xA2A1 => "Phoenix Inverter 12V 3000VA 230V",
-            0xA2A2 => "Phoenix Inverter 24V 3000VA 230V",
-            0xA2A4 => "Phoenix Inverter 48V 3000VA 230V",
-            0xA340 => "Phoenix Smart IP43 Charger 12|50 (1+1)",
-            0xA341 => "Phoenix Smart IP43 Charger 12|50 (3)",
-            0xA342 => "Phoenix Smart IP43 Charger 24|25 (1+1)",
-            0xA343 => "Phoenix Smart IP43 Charger 24|25 (3)",
-            0xA344 => "Phoenix Smart IP43 Charger 12|30 (1+1)",
-            0xA345 => "Phoenix Smart IP43 Charger 12|30 (3)",
-            0xA346 => "Phoenix Smart IP43 Charger 24|16 (1+1)",
-            0xA347 => "Phoenix Smart IP43 Charger 24|16 (3)",
-            _ => "Unknown device",
+impl StateOfOperation {
+    fn from_u32(val: u32) -> Option<Self> {
+        match val {
+            0 => Some(StateOfOperation::Off),
+            1 => Some(StateOfOperation::LowPower),
+            2 => Some(StateOfOperation::Fault),
+            3 => Some(StateOfOperation::Bulk),
+            4 => Some(StateOfOperation::Absorption),
+            5 => Some(StateOfOperation::Float),
+            6 => Some(StateOfOperation::Storage),
+            7 => Some(StateOfOperation::Equalize),
+            9 => Some(StateOfOperation::Inverting),
+            11 => Some(StateOfOperation::PowerSupply),
+            245 => Some(StateOfOperation::StartingUp),
+            246 => Some(StateOfOperation::RepeatedAbsorption),
+            247 => Some(StateOfOperation::AutoEqualize),
+            248 => Some(StateOfOperation::BatterySafe),
+            252 => Some(StateOfOperation::ExternalControl),
+            _ => None,
         }
     }
 }
 
-pub enum StateOfOperation {
-    Off = 0,
-    LowPower = 1,
-    Fault = 2,
-    Bulk = 3,
-    Absorption = 4,
-    Float = 5,
-    Storage = 6,
-    Equalize = 7,
-    Inverting = 9,
-    PowerSupply = 11,
-    StartingUp = 245,
-    RepeatedAbsorption = 246,
-    AutoEqualize = 247,
-    BatterySafe = 248,
-    ExternalControl = 252,
-}
-
+#[derive(Debug)]
 pub enum ErrorCode {
-    NoError = 0,
-    BatteryVoltageHigh = 2,
-    ChargerTemperatureHigh = 17,
-    ChargerCurrentHigh = 18,
-    ChargerCurrentReversed = 19,
-    BulkTimeLimit = 20,
-    CurrentSensor = 21,
-    TerminalTemperatureHigh = 26,
-    Converter = 28,
-    InputVoltageHigh = 33,
-    InputCurrentHigh = 34,
-    InputShutdownDueToBatteryVoltage = 38,
-    InputShutdownDueToCurrentFlowWhileOff = 39,
-    LostCommunication = 65,
-    SynchronizedChargingConfiguration = 66,
-    BmsConnectionLost = 67,
-    NetworkMisconfigured = 68,
-    FactoryCalibrationDataLost = 116,
-    InvalidFirmware = 117,
-    InvalidUserSettings = 119,
+    NoError,
+    BatteryVoltageHigh,
+    ChargerTemperatureHigh,
+    ChargerCurrentHigh,
+    ChargerCurrentReversed,
+    BulkTimeLimit,
+    CurrentSensor,
+    TerminalTemperatureHigh,
+    Converter,
+    InputVoltageHigh,
+    InputCurrentHigh,
+    InputShutdownDueToBatteryVoltage,
+    InputShutdownDueToCurrentFlowWhileOff,
+    LostCommunication,
+    SynchronizedChargingConfiguration,
+    BmsConnectionLost,
+    NetworkMisconfigured,
+    FactoryCalibrationDataLost,
+    InvalidFirmware,
+    InvalidUserSettings,
 }
 
-pub enum Mode {
-    Charger = 1,
-    Inverter = 2,
-    Off = 4,
-    Eco = 5,
-    Hibernate = 253,
+impl ErrorCode {
+    fn from_u32(val: u32) -> Option<ErrorCode> {
+        match val {
+            0 => Some(ErrorCode::NoError),
+            2 => Some(ErrorCode::BatteryVoltageHigh),
+            17 => Some(ErrorCode::ChargerTemperatureHigh),
+            18 => Some(ErrorCode::ChargerCurrentHigh),
+            19 => Some(ErrorCode::ChargerCurrentReversed),
+            20 => Some(ErrorCode::BulkTimeLimit),
+            21 => Some(ErrorCode::CurrentSensor),
+            26 => Some(ErrorCode::TerminalTemperatureHigh),
+            28 => Some(ErrorCode::Converter),
+            33 => Some(ErrorCode::InputVoltageHigh),
+            34 => Some(ErrorCode::InputCurrentHigh),
+            38 => Some(ErrorCode::InputShutdownDueToBatteryVoltage),
+            39 => Some(ErrorCode::InputShutdownDueToCurrentFlowWhileOff),
+            65 => Some(ErrorCode::LostCommunication),
+            66 => Some(ErrorCode::SynchronizedChargingConfiguration),
+            67 => Some(ErrorCode::BmsConnectionLost),
+            68 => Some(ErrorCode::NetworkMisconfigured),
+            116 => Some(ErrorCode::FactoryCalibrationDataLost),
+            117 => Some(ErrorCode::InvalidFirmware),
+            119 => Some(ErrorCode::InvalidUserSettings),
+            _ => None,                    
+        }
+    }
 }
 
+#[derive(Debug)]
 pub enum Mppt {
     Off = 0,
     VoltageOrCurrentLimited = 1,
     MpptTrackerActive = 2,
 }
 
+impl Mppt {
+    fn from_u32(val: u32) -> Option<Mppt> {
+        match val {
+            0 => Some(Mppt::Off),
+            1 => Some(Mppt::VoltageOrCurrentLimited),
+            2 => Some(Mppt::MpptTrackerActive),
+            _ => None,
+        }        
+    }
+}
+
 #[cfg(test)]
 mod test {
+    use std::io::Cursor;
+    use tokio_util::codec::FramedRead;
+    use futures::TryStreamExt;
+    use super::{VeDirectMpptDecoder, MpptFrame};
 
+    #[tokio::test]
+    async fn parse() {
+        // 0x0d, 0x0a
+        // field-label
+        // 0x09
+        // value
+        //let input = std::include_bytes!("../../../test/usb-VictronEnergy_BV_VE_Direct_cable_VE46V0KW-if00-port0");
+        let input = b"12\r\n";
+
+        let reader = &mut Cursor::new(input);
+        let decoder = VeDirectMpptDecoder::default();
+
+        let result = FramedRead::new(reader, decoder).try_collect().await;
+        let frames: Vec<MpptFrame> = result.unwrap();
+    }
 }

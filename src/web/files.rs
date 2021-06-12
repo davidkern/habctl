@@ -1,7 +1,6 @@
 use crate::config::Config;
-use warp::Filter;
 use std::path::Path;
-
+use warp::Filter;
 
 /// Serve static files from `habux` wasm-client project
 pub fn static_files() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {

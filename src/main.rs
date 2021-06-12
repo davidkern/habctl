@@ -60,12 +60,9 @@ fn main() -> Result<()> {
         dbg!(Config::get());
 
         log::debug!("starting services");
-        tokio::try_join!(
-            web::serve(Config::get().web.listen_addr),
-        )?;
+        tokio::try_join!(web::serve(Config::get().web.listen_addr),)?;
 
         log::debug!("exiting");
-        Ok( () )
+        Ok(())
     })
 }
-

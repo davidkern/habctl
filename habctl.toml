@@ -9,5 +9,5 @@ update_interval = 1000
 [hardware.mppt.big]
 path = "/dev/serial/by-id/usb-VictronEnergy_BV_VE_Direct_cable_VE46V0KW-if00-port0"
 
-[hardware.mppt.small]
+[hardware.mppt.lil]
 path = "/dev/serial/by-id/usb-VictronEnergy_BV_VE_Direct_cable_VE47E73U-if00-port0"

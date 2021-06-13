@@ -68,6 +68,7 @@ impl Default for VeDirectMpptDecoder {
     }
 }
 
+#[derive(Debug)]
 struct Cursor<'a> {
     point: usize,
     bytes: &'a mut BytesMut,
@@ -139,6 +140,7 @@ impl<'a> Cursor<'a> {
     }
 }
 
+#[derive(Debug)]
 enum State {
     Unsynchronized,
     Crlf,
@@ -240,6 +242,8 @@ impl Decoder for VeDirectMpptDecoder {
         let mut frame = MpptFrame::default();
 
         loop {
+            log::debug!("{:#?} @{} {:#?}", self.state, name, cursor);
+
             match self.state {
                 State::Unsynchronized => {
                     if cursor.read_until(b"\r\n").is_none() {

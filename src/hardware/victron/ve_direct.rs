@@ -240,8 +240,8 @@ impl Decoder for VeDirectMpptDecoder {
         let mut name = String::new(); 
         let mut frame = MpptFrame::default();
 
-        loop {
-            log::debug!("{:#?} @{} {:#?}", self.state, name, cursor);
+        let result = loop {
+            log::debug!("{} {:#?} {:#?}", name, self.state, cursor);
 
             match self.state {
                 State::Unsynchronized => {
@@ -287,7 +287,7 @@ impl Decoder for VeDirectMpptDecoder {
                 },
 
                 State::Tab => {
-                    if let Some(tab) = cursor.byte() {
+                    if let Some(_tab) = cursor.byte() {
                         self.state = State::Value;
                         continue;
                     } else {
@@ -467,8 +467,12 @@ impl Decoder for VeDirectMpptDecoder {
                         break Ok(None)
                     }
                 }
-            }    
-        }
+            }
+        };
+
+        log::debug!("{} {:#?}", name, result);
+        
+        result
     }
 }
 

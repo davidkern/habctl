@@ -259,7 +259,7 @@ impl Decoder for VeDirectMpptDecoder {
                         match name.as_str() {
                             "V" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
-                                    if let Ok(v) = u32::from_str_radix(&value_str[2..], 16) {
+                                    if let Ok(v) = u32::from_str_radix(&value_str, 10) {
                                         frame.battery_voltage = Some(v);
                                     }    
                                 }
@@ -433,6 +433,7 @@ impl Decoder for VeDirectMpptDecoder {
 
 bitflags! {
     pub struct OffReason: u32 {
+        const NONE = 0x0000_0000;
         const NO_INPUT_POWER = 0x0000_0001;
         const SWITCHED_OFF_POWER_SWITCH = 0x0000_0002;
         const SWITCHED_OFF_REGISTER = 0x0000_0004;

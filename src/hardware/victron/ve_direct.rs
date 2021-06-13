@@ -37,7 +37,6 @@ impl VeDirectMppt {
         }
     }
 
-    /// Process data from a VeDirect device
     pub async fn run(&self) -> Result<()> {
         let builder = build(self.path.as_str(), 19200);
         let serial = AsyncSerial::from_builder(&builder)?;
@@ -48,7 +47,7 @@ impl VeDirectMppt {
         while let Some(result) = frame_reader.next().await {
             match result {
                 Ok(frame) => {
-                    println!("{}", frame);
+                    println!("{}: {}", self.name, frame);
                     self.telemetry.set(frame);
                 },
                 Err(e) => { println!("error: {}", e); },

@@ -18,12 +18,20 @@ use combine::{
     Parser,
 };
 use std::num::Wrapping;
+use tokio_stream::StreamExt;
 
 /// Process data from a VeDirect device
 pub async fn ve_direct_mppt(path: &str) -> Result<()> {
     let builder = build(path, 19200);
     let mut serial = AsyncSerial::from_builder(&builder)?;
 
+    let decoder = VeDirectMpptDecoder::default();
+    let mut frame_reader = FramedRead::new(serial, decoder);
+
+    while let Some(frame) = frame_reader.next().await {
+        println!("{:#?}", frame);
+    }
+    
     Ok(())
 }
 
@@ -555,7 +563,6 @@ mod test {
     use tokio_util::codec::FramedRead;
     use futures::TryStreamExt;
     use super::{VeDirectMpptDecoder, MpptFrame};
-    use tokio_stream::StreamExt;
 
     #[tokio::test]
     async fn parse() {

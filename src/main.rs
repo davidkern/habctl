@@ -60,7 +60,10 @@ fn main() -> Result<()> {
         dbg!(Config::get());
 
         log::debug!("starting services");
-        tokio::try_join!(web::serve(Config::get().web.listen_addr),)?;
+        tokio::try_join!(
+            web::serve(Config::get().web.listen_addr),
+            hardware::victron::ve_direct::ve_direct_mppt("/dev/serial/by-id/usb-VictronEnergy_BV_VE_Direct_cable_VE46V0KW-if00-port0"),
+        )?;
 
         log::debug!("exiting");
         Ok(())

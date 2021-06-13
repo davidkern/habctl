@@ -28,8 +28,11 @@ pub async fn ve_direct_mppt(path: &str) -> Result<()> {
     let decoder = VeDirectMpptDecoder::default();
     let mut frame_reader = FramedRead::new(serial, decoder);
 
-    while let Some(frame) = frame_reader.next().await {
-        println!("{:#?}", frame);
+    while let Some(result) = frame_reader.next().await {
+        match result {
+            Ok(frame) => { println!("{}", frame); },
+            Err(e) => { println!("error: {}", e); },
+        }
     }
     
     Ok(())
@@ -186,6 +189,21 @@ pub struct MpptFrame {
 
     /// MPPT: Mppt Status
     mppt_status: Option<Mppt>,
+}
+
+impl std::fmt::Display for MpptFrame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "VPV {:?} PPV {:?} V {:?} I {:?} H20 {:?} H21 {:?} CS {:?} MPPT {:?}",
+            self.panel_voltage,
+            self.panel_power,
+            self.battery_voltage,
+            self.battery_current,
+            self.yield_today,
+            self.maximum_power_today,
+            self.state,
+            self.mppt_status,
+        )
+    }    
 }
 
 impl Decoder for VeDirectMpptDecoder {

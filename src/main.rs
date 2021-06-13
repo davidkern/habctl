@@ -63,10 +63,7 @@ fn main() -> Result<()> {
         let hardware = hardware::Hardware::default();
 
         log::debug!("starting services");
-        tokio::try_join!(
-            web::serve(Config::get().web.listen_addr),
-            hardware.run(),
-        )?;
+        tokio::try_join!(web::serve(Config::get().web.listen_addr), hardware.run(),)?;
 
         log::debug!("exiting");
         Ok(())

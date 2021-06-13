@@ -1,25 +1,12 @@
 //! Victron VE-Direct interface
 use anyhow::Result;
 use bytes::{Buf, BytesMut};
-use std::path::Path;
 use serial_io::{build, AsyncSerial};
-use std::time::Duration;
-use tokio_util::codec::{Decoder, FramedRead};
-use std::str;
-use combine::{
-    error::{ParseError, StreamError},
-    parser::{
-        byte::digit,
-        combinator::{any_partial_state, AnyPartialState},
-        range::{range, recognize, take},
-    },
-    skip_many, skip_many1,
-    stream::{easy, PartialStream, RangeStream, StreamErrorFor},
-    Parser,
-};
-use std::num::Wrapping;
-use tokio_stream::StreamExt;
 use std::cell::Cell;
+use std::num::Wrapping;
+use std::str;
+use tokio_stream::StreamExt;
+use tokio_util::codec::{Decoder, FramedRead};
 
 #[derive(Default)]
 pub struct VeDirectMppt {
@@ -49,11 +36,13 @@ impl VeDirectMppt {
                 Ok(frame) => {
                     println!("{}: {}", self.name, frame);
                     self.telemetry.set(frame);
-                },
-                Err(e) => { println!("error: {}", e); },
+                }
+                Err(e) => {
+                    println!("error: {}", e);
+                }
             }
         }
-        
+
         Ok(())
     }
 }
@@ -64,7 +53,9 @@ pub struct VeDirectMpptDecoder {
 
 impl Default for VeDirectMpptDecoder {
     fn default() -> Self {
-        Self { state: State::Unsynchronized }
+        Self {
+            state: State::Unsynchronized,
+        }
     }
 }
 
@@ -77,7 +68,11 @@ struct Cursor<'a> {
 
 impl<'a> Cursor<'a> {
     fn new(bytes: &'a mut BytesMut) -> Self {
-        Self { point: 0, bytes, checksum: Wrapping(0) }
+        Self {
+            point: 0,
+            bytes,
+            checksum: Wrapping(0),
+        }
     }
 
     fn byte(&mut self) -> Option<&u8> {
@@ -97,17 +92,18 @@ impl<'a> Cursor<'a> {
         let len = pattern.len();
         let mut checksum = Wrapping(0u8);
 
-        if len == 0 { return None }
+        if len == 0 {
+            return None;
+        }
 
         loop {
             if idx == len {
                 // success
                 self.checksum += checksum;
-                break Some(output)
+                break Some(output);
             }
 
             if let Some(byte) = self.bytes.get(self.point + idx) {
-
                 if Some(byte) == pattern.get(idx) {
                     // matching, advance the index
                     idx += 1;
@@ -120,7 +116,7 @@ impl<'a> Cursor<'a> {
                 }
             } else {
                 // out of input
-                break None
+                break None;
             }
         }
     }
@@ -214,7 +210,9 @@ pub struct MpptFrame {
 
 impl std::fmt::Display for MpptFrame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "VPV {:?} PPV {:?} V {:?} I {:?} H20 {:?} H21 {:?} CS {:?} MPPT {:?}",
+        write!(
+            f,
+            "VPV {:?} PPV {:?} V {:?} I {:?} H20 {:?} H21 {:?} CS {:?} MPPT {:?}",
             self.panel_voltage,
             self.panel_power,
             self.battery_voltage,
@@ -224,37 +222,37 @@ impl std::fmt::Display for MpptFrame {
             self.state,
             self.mppt_status,
         )
-    }    
+    }
 }
 
 impl Decoder for VeDirectMpptDecoder {
     type Item = MpptFrame;
     type Error = Box<dyn std::error::Error + Send + Sync>;
 
-    fn decode_eof(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+    fn decode_eof(&mut self, _buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         Ok(None)
     }
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let mut cursor = Cursor::new(src);
-        let mut name = String::new(); 
+        let mut name = String::new();
         let mut frame = MpptFrame::default();
 
         let result = loop {
-            log::debug!("{} {:#?} {:#?}", name, self.state, cursor);
+            log::trace!("{} {:#?} {:#?}", name, self.state, cursor);
 
             match self.state {
                 State::Unsynchronized => {
                     if cursor.read_until(b"\r\n").is_none() {
                         cursor.consume_to_point();
-                        return Ok(None)
+                        return Ok(None);
                     };
-    
+
                     cursor.clear_checksum();
 
                     self.state = State::Crlf;
-                },
-    
+                }
+
                 State::Crlf => {
                     if cursor.byte() != Some(&0x0d) {
                         self.state = State::Unsynchronized;
@@ -267,7 +265,7 @@ impl Decoder for VeDirectMpptDecoder {
                     }
 
                     self.state = State::Name;
-                },
+                }
 
                 State::Name => {
                     if let Some(name_bytes) = cursor.read_until(b"\t") {
@@ -275,25 +273,25 @@ impl Decoder for VeDirectMpptDecoder {
                             Ok(n) => {
                                 name = n.to_string();
                                 self.state = State::Tab;
-                            },
+                            }
                             Err(_) => {
                                 self.state = State::Unsynchronized;
                             }
                         }
                         continue;
                     } else {
-                        break Ok(None)
+                        break Ok(None);
                     }
-                },
+                }
 
                 State::Tab => {
                     if let Some(_tab) = cursor.byte() {
                         self.state = State::Value;
                         continue;
                     } else {
-                        break Ok(None)
+                        break Ok(None);
                     }
-                },
+                }
 
                 State::Value => {
                     if let Some(value) = cursor.read_until(b"\r\n") {
@@ -302,37 +300,37 @@ impl Decoder for VeDirectMpptDecoder {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u32::from_str_radix(&value_str, 10) {
                                         frame.battery_voltage = Some(v);
-                                    }    
+                                    }
                                 }
-                            },
+                            }
                             "VPV" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u32::from_str_radix(&value_str, 10) {
                                         frame.panel_voltage = Some(v);
-                                    }    
+                                    }
                                 }
-                            },
+                            }
                             "PPV" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u32::from_str_radix(&value_str, 10) {
                                         frame.panel_power = Some(v);
                                     }
                                 }
-                            },
+                            }
                             "I" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = i32::from_str_radix(&value_str, 10) {
                                         frame.battery_current = Some(v);
                                     }
                                 }
-                            },
+                            }
                             "IL" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = i32::from_str_radix(&value_str, 10) {
                                         frame.load_current = Some(v);
                                     }
-                                }  
-                            },
+                                }
+                            }
                             "LOAD" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if value_str == "ON" {
@@ -341,7 +339,7 @@ impl Decoder for VeDirectMpptDecoder {
                                         frame.load_state = Some(false);
                                     }
                                 }
-                            },
+                            }
                             "RELAY" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if value_str == "ON" {
@@ -350,7 +348,7 @@ impl Decoder for VeDirectMpptDecoder {
                                         frame.relay_state = Some(false);
                                     }
                                 }
-                            },
+                            }
                             "OR" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u32::from_str_radix(&value_str[2..], 16) {
@@ -358,43 +356,43 @@ impl Decoder for VeDirectMpptDecoder {
                                             frame.off_reason = Some(or);
                                         }
                                     }
-                                }  
-                            },
+                                }
+                            }
                             "H19" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u32::from_str_radix(&value_str, 10) {
                                         frame.yield_total = Some(v);
                                     }
-                                }                                  
-                            },
+                                }
+                            }
                             "H20" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u16::from_str_radix(&value_str, 10) {
                                         frame.yield_today = Some(v);
                                     }
-                                }  
-                            },
+                                }
+                            }
                             "H21" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u16::from_str_radix(&value_str, 10) {
                                         frame.maximum_power_today = Some(v);
                                     }
-                                }  
-                            },
+                                }
+                            }
                             "H22" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u16::from_str_radix(&value_str, 10) {
                                         frame.yield_yesterday = Some(v);
                                     }
-                                }  
-                            },
+                                }
+                            }
                             "H23" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u16::from_str_radix(&value_str, 10) {
                                         frame.maximum_power_yesterday = Some(v);
                                     }
-                                }  
-                            },
+                                }
+                            }
                             "ERR" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u32::from_str_radix(&value_str, 10) {
@@ -403,7 +401,7 @@ impl Decoder for VeDirectMpptDecoder {
                                         }
                                     }
                                 }
-                            },
+                            }
                             "CS" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u32::from_str_radix(&value_str, 10) {
@@ -412,31 +410,31 @@ impl Decoder for VeDirectMpptDecoder {
                                         }
                                     }
                                 }
-                            },
+                            }
                             "FW" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     frame.firmware_version = Some(String::from(value_str));
                                 }
-                            },
+                            }
                             "PID" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u32::from_str_radix(&value_str[2..], 16) {
                                         frame.product_id = Some(v);
                                     }
                                 }
-                            },
+                            }
                             "SER#" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     frame.serial_number = Some(String::from(value_str));
                                 }
-                            },
+                            }
                             "HSDS" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u16::from_str_radix(&value_str, 10) {
                                         frame.day_number = Some(v);
                                     }
                                 }
-                            },
+                            }
                             "MPPT" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u32::from_str_radix(&value_str, 10) {
@@ -445,12 +443,12 @@ impl Decoder for VeDirectMpptDecoder {
                                         }
                                     }
                                 }
-                            },
+                            }
                             "Checksum" => {
                                 if cursor.is_checksum_valid() {
                                     self.state = State::Crlf;
                                     cursor.consume_to_point();
-                                    break Ok(Some(frame))
+                                    break Ok(Some(frame));
                                 } else {
                                     self.state = State::Unsynchronized;
                                     continue;
@@ -459,19 +457,19 @@ impl Decoder for VeDirectMpptDecoder {
                             _ => {
                                 self.state = State::Unsynchronized;
                                 continue;
-                            },
+                            }
                         }
                         self.state = State::Crlf;
                         continue;
                     } else {
-                        break Ok(None)
+                        break Ok(None);
                     }
                 }
             }
         };
 
-        log::debug!("{} {:#?}", name, result);
-        
+        log::trace!("{} {:#?}", name, result);
+
         result
     }
 }
@@ -580,7 +578,7 @@ impl ErrorCode {
             116 => Some(ErrorCode::FactoryCalibrationDataLost),
             117 => Some(ErrorCode::InvalidFirmware),
             119 => Some(ErrorCode::InvalidUserSettings),
-            _ => None,                    
+            _ => None,
         }
     }
 }
@@ -599,16 +597,16 @@ impl Mppt {
             1 => Some(Mppt::VoltageOrCurrentLimited),
             2 => Some(Mppt::MpptTrackerActive),
             _ => None,
-        }        
+        }
     }
 }
 
 #[cfg(test)]
 mod test {
+    use super::{MpptFrame, VeDirectMpptDecoder};
+    use futures::TryStreamExt;
     use std::io::Cursor;
     use tokio_util::codec::FramedRead;
-    use futures::TryStreamExt;
-    use super::{VeDirectMpptDecoder, MpptFrame};
 
     #[tokio::test]
     async fn parse() {
@@ -616,7 +614,9 @@ mod test {
         // field-label
         // 0x09
         // value
-        let input = std::include_bytes!("../../../test/usb-VictronEnergy_BV_VE_Direct_cable_VE46V0KW-if00-port0");
+        let input = std::include_bytes!(
+            "../../../test/usb-VictronEnergy_BV_VE_Direct_cable_VE46V0KW-if00-port0"
+        );
 
         let reader = &mut Cursor::new(input);
         let decoder = VeDirectMpptDecoder::default();

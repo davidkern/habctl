@@ -4,8 +4,8 @@ pub mod config;
 pub mod victron;
 
 use anyhow::Result;
-use victron::ve_direct::VeDirectMppt;
 use futures::future::try_join_all;
+use victron::ve_direct::VeDirectMppt;
 
 pub struct Hardware {
     mppt: Vec<VeDirectMppt>,
@@ -28,7 +28,12 @@ impl Default for Hardware {
         let config = crate::Config::get();
 
         let hardware = Self {
-            mppt: config.hardware.mppt.iter().map(|(name, config)| VeDirectMppt::new(name, &config.path)).collect(),
+            mppt: config
+                .hardware
+                .mppt
+                .iter()
+                .map(|(name, config)| VeDirectMppt::new(name, &config.path))
+                .collect(),
         };
 
         hardware

@@ -3,13 +3,12 @@ use std::collections::HashMap;
 
 #[derive(Deserialize, Debug)]
 pub struct Hardware {
-    pub devices: HashMap<String, Device>,
+    pub mppt: HashMap<String, Mppt>,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct Device {
+pub struct Mppt {
     pub path: String,
-    pub protocol: Protocol,
 }
 
 #[derive(Deserialize, Debug)]

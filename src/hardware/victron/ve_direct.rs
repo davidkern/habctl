@@ -19,23 +19,44 @@ use combine::{
 };
 use std::num::Wrapping;
 use tokio_stream::StreamExt;
+use std::cell::Cell;
 
-/// Process data from a VeDirect device
-pub async fn ve_direct_mppt(path: &str) -> Result<()> {
-    let builder = build(path, 19200);
-    let mut serial = AsyncSerial::from_builder(&builder)?;
+#[derive(Default)]
+pub struct VeDirectMppt {
+    name: String,
+    path: String,
+    pub telemetry: Cell<MpptFrame>,
+}
 
-    let decoder = VeDirectMpptDecoder::default();
-    let mut frame_reader = FramedRead::new(serial, decoder);
-
-    while let Some(result) = frame_reader.next().await {
-        match result {
-            Ok(frame) => { println!("{}", frame); },
-            Err(e) => { println!("error: {}", e); },
+impl VeDirectMppt {
+    pub fn new(name: &str, path: &str) -> Self {
+        Self {
+            name: name.to_owned(),
+            path: path.to_owned(),
+            telemetry: Cell::default(),
         }
     }
-    
-    Ok(())
+
+    /// Process data from a VeDirect device
+    pub async fn run(&self) -> Result<()> {
+        let builder = build(self.path.as_str(), 19200);
+        let serial = AsyncSerial::from_builder(&builder)?;
+
+        let decoder = VeDirectMpptDecoder::default();
+        let mut frame_reader = FramedRead::new(serial, decoder);
+
+        while let Some(result) = frame_reader.next().await {
+            match result {
+                Ok(frame) => {
+                    println!("{}", frame);
+                    self.telemetry.set(frame);
+                },
+                Err(e) => { println!("error: {}", e); },
+            }
+        }
+        
+        Ok(())
+    }
 }
 
 pub struct VeDirectMpptDecoder {

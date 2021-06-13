@@ -6,6 +6,8 @@ static_path = "../habux/dist"
 listen_addr = "0.0.0.0:8080"
 update_interval = 1000
 
-[hardware.devices.mmpt-1]
-path = "/tmp/mppt-1"
-protocol = "VictronVEDirect"
+[hardware.mppt.big]
+path = "/tmp/mppt-big"
+
+[hardware.mppt.small]
+path = "/tmp/mppt-small"

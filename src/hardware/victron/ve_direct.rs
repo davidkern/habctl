@@ -111,13 +111,12 @@ impl<'a> Cursor<'a> {
                 if Some(byte) == pattern.get(idx) {
                     // matching, advance the index
                     idx += 1;
-                    checksum += Wrapping(*byte);
                 } else {
                     // failed, move point and reset index
                     output.push(*byte);
+                    checksum += Wrapping(*byte);
                     self.point += 1;
                     idx = 0;
-                    checksum = Wrapping(0u8);
                 }
             } else {
                 // out of input

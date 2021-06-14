@@ -13,7 +13,7 @@ pub type Hardware = Arc<HardwareImpl>;
 
 #[derive(Serialize)]
 pub struct HardwareImpl {
-    mppt: Vec<VeDirectMppt>,
+    mppt: Vec<Arc<VeDirectMppt>>,
 }
 
 impl HardwareImpl {

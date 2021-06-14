@@ -2,7 +2,6 @@
 use anyhow::Result;
 use bytes::{Buf, BytesMut};
 use serial_io::{build, AsyncSerial};
-use std::cell::Cell;
 use std::num::Wrapping;
 use std::str;
 use tokio_stream::StreamExt;
@@ -12,10 +11,8 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 use std::time::SystemTime;
 
-pub type VeDirectMppt = Arc<VeDirectMpptImpl>;
-
-pub fn new(name: &str, path: &str) -> VeDirectMppt {
-    Arc::new(VeDirectMpptImpl {
+pub fn new(name: &str, path: &str) -> Arc<VeDirectMppt> {
+    Arc::new(VeDirectMppt {
         loopback: false,
         name: name.to_owned(),
         path: path.to_owned(),
@@ -23,8 +20,8 @@ pub fn new(name: &str, path: &str) -> VeDirectMppt {
     })
 }
 
-pub fn loopback(name: &str) -> VeDirectMppt {
-    Arc::new(VeDirectMpptImpl {
+pub fn loopback(name: &str) -> Arc<VeDirectMppt> {
+    Arc::new(VeDirectMppt {
         loopback: true,
         name: name.to_owned(),
         path: String::new(),
@@ -33,16 +30,16 @@ pub fn loopback(name: &str) -> VeDirectMppt {
 }
 
 #[derive(Default, Serialize)]
-pub struct VeDirectMpptImpl {
+pub struct VeDirectMppt {
     loopback: bool,
     name: String,
     path: String,
     pub telemetry: Mutex<MpptFrame>,
 }
 
-impl VeDirectMpptImpl {
+impl VeDirectMppt {
     pub async fn run(&self) -> Result<()> {
-        if self.path.is_empty() {
+        if self.loopback {
             loop {
                 log::debug!("VeDirectMppt {} is in loopback mode.", self.name);
                 sleep(Duration::from_secs(600)).await;

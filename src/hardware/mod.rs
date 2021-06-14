@@ -9,14 +9,12 @@ use victron::ve_direct::{self, VeDirectMppt};
 use std::sync::Arc;
 use serde::Serialize;
 
-pub type Hardware = Arc<HardwareImpl>;
-
 #[derive(Serialize)]
-pub struct HardwareImpl {
+pub struct Hardware {
     mppt: Vec<Arc<VeDirectMppt>>,
 }
 
-impl HardwareImpl {
+impl Hardware {
     pub async fn run(&self) -> Result<Vec<()>> {
         let mut runners = Vec::new();
 
@@ -28,7 +26,7 @@ impl HardwareImpl {
     }
 }
 
-impl Default for HardwareImpl {
+impl Default for Hardware {
     fn default() -> Self {
         let config = crate::Config::get();
 

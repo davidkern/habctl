@@ -170,19 +170,19 @@ pub struct MpptFrame {
     timestamp: Option<SystemTime>,
 
     /// V: Battery voltage (mV)
-    battery_voltage: Option<u32>,
+    battery_voltage: Option<f32>,
 
     /// VPV: Panel voltage (mV)
-    panel_voltage: Option<u32>,
+    panel_voltage: Option<f32>,
 
     /// PPV: Panel power (W)
-    panel_power: Option<u32>,
+    panel_power: Option<u16>,
 
-    /// I: Battery current (mA): >0 charging, <0 discharging
-    battery_current: Option<i32>,
+    /// I: Battery current (A): >0 charging, <0 discharging
+    battery_current: Option<f32>,
 
-    /// IL: Load current (mA)
-    load_current: Option<i32>,
+    /// IL: Load current (A)
+    load_current: Option<f32>,
 
     /// LOAD: Load status
     load_state: Option<bool>,
@@ -193,16 +193,16 @@ pub struct MpptFrame {
     /// OR: Off reason
     off_reason: Option<OffReason>,
 
-    /// H19: Yield total, resettable (10W)
+    /// H19: Yield total (W)
     yield_total: Option<u32>,
 
-    /// H20: Yield today (10W)
+    /// H20: Yield today (W)
     yield_today: Option<u16>,
 
     /// H21: Maximum power today (W)
     maximum_power_today: Option<u16>,
 
-    /// H22: Yield yesterday (10W)
+    /// H22: Yield yesterday (W)
     yield_yesterday: Option<u16>,
 
     /// H23: Maximum power yesterday (W)
@@ -322,20 +322,20 @@ impl Decoder for VeDirectMpptDecoder {
                             "V" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u32::from_str_radix(&value_str, 10) {
-                                        frame.battery_voltage = Some(v);
+                                        frame.battery_voltage = Some(v as f32 / 1000.0);
                                     }
                                 }
                             }
                             "VPV" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u32::from_str_radix(&value_str, 10) {
-                                        frame.panel_voltage = Some(v);
+                                        frame.panel_voltage = Some(v as f32 / 1000.0);
                                     }
                                 }
                             }
                             "PPV" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
-                                    if let Ok(v) = u32::from_str_radix(&value_str, 10) {
+                                    if let Ok(v) = u16::from_str_radix(&value_str, 10) {
                                         frame.panel_power = Some(v);
                                     }
                                 }
@@ -343,14 +343,14 @@ impl Decoder for VeDirectMpptDecoder {
                             "I" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = i32::from_str_radix(&value_str, 10) {
-                                        frame.battery_current = Some(v);
+                                        frame.battery_current = Some(v as f32 / 1000.0);
                                     }
                                 }
                             }
                             "IL" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = i32::from_str_radix(&value_str, 10) {
-                                        frame.load_current = Some(v);
+                                        frame.load_current = Some(v as f32 / 1000.0);
                                     }
                                 }
                             }
@@ -384,14 +384,14 @@ impl Decoder for VeDirectMpptDecoder {
                             "H19" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u32::from_str_radix(&value_str, 10) {
-                                        frame.yield_total = Some(v);
+                                        frame.yield_total = Some(v * 10);
                                     }
                                 }
                             }
                             "H20" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u16::from_str_radix(&value_str, 10) {
-                                        frame.yield_today = Some(v);
+                                        frame.yield_today = Some(v * 10);
                                     }
                                 }
                             }
@@ -405,7 +405,7 @@ impl Decoder for VeDirectMpptDecoder {
                             "H22" => {
                                 if let Ok(value_str) = str::from_utf8(&value) {
                                     if let Ok(v) = u16::from_str_radix(&value_str, 10) {
-                                        frame.yield_yesterday = Some(v);
+                                        frame.yield_yesterday = Some(v * 10);
                                     }
                                 }
                             }

@@ -8,7 +8,8 @@ pub struct Hardware {
 
 #[derive(Deserialize, Debug)]
 pub struct Mppt {
-    pub path: String,
+    pub port: Option<String>,
+    pub loopback: Option<bool>,
 }
 
 #[derive(Deserialize, Debug)]

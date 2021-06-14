@@ -7,40 +7,64 @@ use std::num::Wrapping;
 use std::str;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{Decoder, FramedRead};
+use tokio::time::{sleep, Duration};
+use std::sync::{Arc, Mutex};
+use serde::Serialize;
+use std::time::SystemTime;
 
-#[derive(Default)]
-pub struct VeDirectMppt {
-    name: String,
-    path: String,
-    pub telemetry: Cell<MpptFrame>,
+pub type VeDirectMppt = Arc<VeDirectMpptImpl>;
+
+pub fn new(name: &str, path: &str) -> VeDirectMppt {
+    Arc::new(VeDirectMpptImpl {
+        loopback: false,
+        name: name.to_owned(),
+        path: path.to_owned(),
+        telemetry: Mutex::default(),
+    })
 }
 
-impl VeDirectMppt {
-    pub fn new(name: &str, path: &str) -> Self {
-        Self {
-            name: name.to_owned(),
-            path: path.to_owned(),
-            telemetry: Cell::default(),
-        }
-    }
+pub fn loopback(name: &str) -> VeDirectMppt {
+    Arc::new(VeDirectMpptImpl {
+        loopback: true,
+        name: name.to_owned(),
+        path: String::new(),
+        telemetry: Mutex::default(),
+    })
+}
 
+#[derive(Default, Serialize)]
+pub struct VeDirectMpptImpl {
+    loopback: bool,
+    name: String,
+    path: String,
+    pub telemetry: Mutex<MpptFrame>,
+}
+
+impl VeDirectMpptImpl {
     pub async fn run(&self) -> Result<()> {
-        let builder = build(self.path.as_str(), 19200);
-        let serial = AsyncSerial::from_builder(&builder)?;
-
-        let decoder = VeDirectMpptDecoder::default();
-        let mut frame_reader = FramedRead::new(serial, decoder);
-
-        while let Some(result) = frame_reader.next().await {
-            match result {
-                Ok(frame) => {
-                    println!("{}: {}", self.name, frame);
-                    self.telemetry.set(frame);
-                }
-                Err(e) => {
-                    println!("error: {}", e);
-                }
+        if self.path.is_empty() {
+            loop {
+                log::debug!("VeDirectMppt {} is in loopback mode.", self.name);
+                sleep(Duration::from_secs(600)).await;
             }
+        } else {
+            let builder = build(self.path.as_str(), 19200);
+            let serial = AsyncSerial::from_builder(&builder)?;
+    
+            let decoder = VeDirectMpptDecoder::default();
+            let mut frame_reader = FramedRead::new(serial, decoder);
+    
+            while let Some(result) = frame_reader.next().await {
+                match result {
+                    Ok(frame) => {
+                        println!("{}: {}", self.name, frame);
+                        *self.telemetry.lock().unwrap() = frame;
+                    }
+                    Err(e) => {
+                        println!("error: {}", e);
+                    }
+                }
+            }    
         }
 
         Ok(())
@@ -144,8 +168,10 @@ enum State {
     Value,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Clone, Debug, Serialize)]
 pub struct MpptFrame {
+    timestamp: Option<SystemTime>,
+
     /// V: Battery voltage (mV)
     battery_voltage: Option<u32>,
 
@@ -448,6 +474,7 @@ impl Decoder for VeDirectMpptDecoder {
                                 if cursor.is_checksum_valid() {
                                     self.state = State::Crlf;
                                     cursor.consume_to_point();
+                                    frame.timestamp = Some(SystemTime::now());
                                     break Ok(Some(frame));
                                 } else {
                                     self.state = State::Unsynchronized;
@@ -475,6 +502,7 @@ impl Decoder for VeDirectMpptDecoder {
 }
 
 bitflags! {
+    #[derive(Serialize)]
     pub struct OffReason: u32 {
         const NONE = 0x0000_0000;
         const NO_INPUT_POWER = 0x0000_0001;
@@ -489,7 +517,7 @@ bitflags! {
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, Serialize)]
 pub enum StateOfOperation {
     Off,
     LowPower,
@@ -531,7 +559,7 @@ impl StateOfOperation {
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, Serialize)]
 pub enum ErrorCode {
     NoError,
     BatteryVoltageHigh,
@@ -583,7 +611,7 @@ impl ErrorCode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, Serialize)]
 pub enum Mppt {
     Off = 0,
     VoltageOrCurrentLimited = 1,

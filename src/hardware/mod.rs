@@ -5,13 +5,18 @@ pub mod victron;
 
 use anyhow::Result;
 use futures::future::try_join_all;
-use victron::ve_direct::VeDirectMppt;
+use victron::ve_direct::{self, VeDirectMppt};
+use std::sync::Arc;
+use serde::Serialize;
 
-pub struct Hardware {
+pub type Hardware = Arc<HardwareImpl>;
+
+#[derive(Serialize)]
+pub struct HardwareImpl {
     mppt: Vec<VeDirectMppt>,
 }
 
-impl Hardware {
+impl HardwareImpl {
     pub async fn run(&self) -> Result<Vec<()>> {
         let mut runners = Vec::new();
 
@@ -23,7 +28,7 @@ impl Hardware {
     }
 }
 
-impl Default for Hardware {
+impl Default for HardwareImpl {
     fn default() -> Self {
         let config = crate::Config::get();
 
@@ -32,7 +37,12 @@ impl Default for Hardware {
                 .hardware
                 .mppt
                 .iter()
-                .map(|(name, config)| VeDirectMppt::new(name, &config.path))
+                .map(|(name, config)| {
+                    match &config.port {
+                        Some(port) => ve_direct::new(name, &port),
+                        None => ve_direct::loopback(name),
+                    }
+                })
                 .collect(),
         };
 

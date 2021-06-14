@@ -15,7 +15,7 @@ pub fn new(name: &str, path: &str) -> Arc<VeDirectMppt> {
     Arc::new(VeDirectMppt {
         loopback: false,
         name: name.to_owned(),
-        path: path.to_owned(),
+        port: path.to_owned(),
         telemetry: Mutex::default(),
     })
 }
@@ -24,7 +24,7 @@ pub fn loopback(name: &str) -> Arc<VeDirectMppt> {
     Arc::new(VeDirectMppt {
         loopback: true,
         name: name.to_owned(),
-        path: String::new(),
+        port: String::new(),
         telemetry: Mutex::default(),
     })
 }
@@ -33,7 +33,7 @@ pub fn loopback(name: &str) -> Arc<VeDirectMppt> {
 pub struct VeDirectMppt {
     loopback: bool,
     name: String,
-    path: String,
+    port: String,
     pub telemetry: Mutex<MpptFrame>,
 }
 
@@ -45,7 +45,7 @@ impl VeDirectMppt {
                 sleep(Duration::from_secs(600)).await;
             }
         } else {
-            let builder = build(self.path.as_str(), 19200);
+            let builder = build(self.port.as_str(), 19200);
             let serial = AsyncSerial::from_builder(&builder)?;
     
             let decoder = VeDirectMpptDecoder::default();

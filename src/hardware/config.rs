@@ -1,16 +1,15 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 
-
 #[derive(Deserialize, Debug)]
 pub struct Hardware {
-    pub devices: HashMap<String, Device>,
+    pub mppt: HashMap<String, Mppt>,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct Device {
-    pub path: String,
-    pub protocol: Protocol,
+pub struct Mppt {
+    pub port: Option<String>,
+    pub loopback: Option<bool>,
 }
 
 #[derive(Deserialize, Debug)]

@@ -33,12 +33,18 @@
 //     log::debug!("shutting down");
 // }
 
+#[macro_use]
+extern crate bitflags;
+
 mod config;
 mod hardware;
+#[cfg(test)]
+mod test;
 mod web;
 
 use anyhow::Result;
 use tokio::runtime::Runtime;
+use std::sync::Arc;
 
 use crate::config::Config;
 
@@ -54,13 +60,13 @@ fn main() -> Result<()> {
         Config::load()?;
         dbg!(Config::get());
 
+        log::debug!("building hardware interfaces");
+        let hardware = Arc::new(hardware::Hardware::default());
+
         log::debug!("starting services");
-        tokio::try_join!(
-            web::serve(Config::get().web.listen_addr),
-        )?;
+        tokio::try_join!(web::serve(Config::get().web.listen_addr, hardware.clone()), hardware.run(),)?;
 
         log::debug!("exiting");
-        Ok( () )
+        Ok(())
     })
 }
-

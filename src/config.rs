@@ -1,9 +1,8 @@
 //! Loads configuration from multiple sources
 
-use anyhow::{Result, Error};
+use anyhow::{Error, Result};
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
-
 
 static INSTANCE: OnceCell<Config> = OnceCell::new();
 
@@ -32,7 +31,7 @@ impl Config {
     /// Gets the global config
     pub fn get() -> &'static Config {
         INSTANCE.get().expect("config not loaded")
-    }    
+    }
 }
 
 /// Configuration captured at build time

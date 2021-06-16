@@ -65,6 +65,9 @@ impl Icm20948 {
                 let mut i2c = i2c;
                 i2c.smbus_set_slave_address(0x69, false).expect("set i2c address");
 
+                // power on, best available clock
+                i2c.smbus_write_byte_data(0x06, 0x01).expect("power up");
+
                 let accel_xout_h = i2c.smbus_read_byte_data(0x2d).unwrap() as f32;
                 let accel_xout_l = i2c.smbus_read_byte_data(0x2e).unwrap() as f32;
                 let accel_yout_h = i2c.smbus_read_byte_data(0x2f).unwrap() as f32;
@@ -102,6 +105,7 @@ impl Icm20948 {
                 let temp = scale(temp_out_h, temp_out_l, TEMP_SCALE) + 21.0;
 
                 frame.temperature = Some(temp);
+                frame.timestamp = Some(SystemTime::now());
 
                 log::info!("{}: {:?}", self.name, frame);
                 *self.telemetry.lock().unwrap() = frame;

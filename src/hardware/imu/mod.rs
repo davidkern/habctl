@@ -99,8 +99,11 @@ impl Icm20948 {
                 frame.gyrometer = Some(na::Vector3::new(gyro_x, gyro_y, gyro_z));
 
                 const TEMP_SCALE: f32 = 1.0 / 333.87;
-                let temp = scale(temp_out_h, temp_out_l, TEMP_SCALE);
+                let temp = scale(temp_out_h, temp_out_l, TEMP_SCALE) + 21.0;
 
+                frame.temperature = Some(temp);
+
+                log::info!("{}: {:?}", self.name, frame);
                 *self.telemetry.lock().unwrap() = frame;
             },
             Err(e) => {
@@ -126,5 +129,5 @@ pub struct ImuFrame {
     magnetometer: Option<na::Vector3<f32>>,
 
     /// IMU temperature in deg C
-    temperature: Option<u16>,
+    temperature: Option<f32>,
 }

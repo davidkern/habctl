@@ -57,11 +57,11 @@ impl VeDirectMppt {
             while let Some(result) = frame_reader.next().await {
                 match result {
                     Ok(frame) => {
-                        println!("{}: {}", self.name, frame);
+                        log::info!("{}: {}", self.name, frame);
                         *self.telemetry.lock().unwrap() = frame;
                     }
                     Err(e) => {
-                        println!("error: {}", e);
+                        log::error!("error: {}", e);
                     }
                 }
             }    

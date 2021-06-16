@@ -42,6 +42,8 @@ impl Icm20948 {
             log::debug!("Icm20948 {} is in loopback mode.", self.name);
             sleep(Duration::from_secs(600)).await;
         } else {
+            log::debug!("Icm20948 {} at {}", self.name, self.port);
+
             task::block_in_place(|| {
                 self.stream_i2c_data();
             })
@@ -53,20 +55,27 @@ impl Icm20948 {
     fn stream_i2c_data(&self) {
         let mut frame = ImuFrame::default();
 
-        if let Ok(i2c) = i2c_linux::I2c::from_path(self.port.to_owned()) {
-            let mut i2c = i2c;
-            // i2c mode 8 (0-axis mode)
-            let mut who_am_i: [u8; 1] = [0u8];
-            let result = i2c.i2c_read_block_data(0x00, &mut who_am_i);
-            frame.temperature = Some(who_am_i[0].into());
-            *self.telemetry.lock().unwrap() = frame;
+        match i2c_linux::I2c::from_path(self.port.to_owned()) {
+            Ok(i2c) => {
+                let mut i2c = i2c;
+                // i2c mode 8 (0-axis mode)
+                let mut who_am_i: [u8; 1] = [0u8];
+                i2c.smbus_set_slave_address(0x69, false).expect("set i2c address");
+                let who_am_i = i2c.smbus_read_byte_data(0x00).unwrap();
+                //let result = i2c.i2c_read_block_data(0x00, &mut who_am_i);
+                frame.temperature = Some(who_am_i.into());
+                *self.telemetry.lock().unwrap() = frame;
 
-            loop {
-                std::thread::sleep(std::time::Duration::from_secs(1));
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                }
+            },
+            Err(e) => {
+                log::error!("IMU {}: {}", self.name, e);
             }
         }
 
-    }    
+    }
 }
 
 

@@ -10,31 +10,34 @@ use tokio::time::{sleep, Duration};
 use std::sync::{Arc, Mutex};
 use serde::Serialize;
 use std::time::SystemTime;
+use crate::hardware::device::Device;
 
-pub fn new(name: &str, path: &str) -> Arc<VeDirectMppt> {
-    Arc::new(VeDirectMppt {
-        loopback: false,
-        name: name.to_owned(),
-        port: path.to_owned(),
-        telemetry: Mutex::default(),
-    })
-}
-
-pub fn loopback(name: &str) -> Arc<VeDirectMppt> {
-    Arc::new(VeDirectMppt {
-        loopback: true,
-        name: name.to_owned(),
-        port: String::new(),
-        telemetry: Mutex::default(),
-    })
-}
-
-#[derive(Default, Serialize)]
+#[derive(Serialize)]
 pub struct VeDirectMppt {
     loopback: bool,
     name: String,
     port: String,
     pub telemetry: Mutex<MpptFrame>,
+}
+
+impl Device for VeDirectMppt {
+    fn device(name: &str, path: &str) -> Arc<VeDirectMppt> {
+        Arc::new(VeDirectMppt {
+            loopback: false,
+            name: name.to_owned(),
+            port: path.to_owned(),
+            telemetry: Mutex::default(),
+        })
+    }
+    
+    fn loopback(name: &str) -> Arc<VeDirectMppt> {
+        Arc::new(VeDirectMppt {
+            loopback: true,
+            name: name.to_owned(),
+            port: String::new(),
+            telemetry: Mutex::default(),
+        })
+    }    
 }
 
 impl VeDirectMppt {
@@ -54,11 +57,11 @@ impl VeDirectMppt {
             while let Some(result) = frame_reader.next().await {
                 match result {
                     Ok(frame) => {
-                        println!("{}: {}", self.name, frame);
+                        log::info!("{}: {}", self.name, frame);
                         *self.telemetry.lock().unwrap() = frame;
                     }
                     Err(e) => {
-                        println!("error: {}", e);
+                        log::error!("error: {}", e);
                     }
                 }
             }    
@@ -167,7 +170,7 @@ enum State {
 
 #[derive(Default, Clone, Debug, Serialize)]
 pub struct MpptFrame {
-    timestamp: Option<SystemTime>,
+    timestamp: Option<f32>,
 
     /// V: Battery voltage (mV)
     battery_voltage: Option<f32>,
@@ -471,7 +474,7 @@ impl Decoder for VeDirectMpptDecoder {
                                 if cursor.is_checksum_valid() {
                                     self.state = State::Crlf;
                                     cursor.consume_to_point();
-                                    frame.timestamp = Some(SystemTime::now());
+                                    frame.timestamp = Some(crate::hardware::timestamp());
                                     break Ok(Some(frame));
                                 } else {
                                     self.state = State::Unsynchronized;

@@ -16,12 +16,14 @@ chrono = { version = "0.4.19", features = ["serde"] }
 circular = "0.3.0"
 combine = "4.5.2"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
+i2c-linux = "0.1.2"
 log = "0.4.13"
+nalgebra = { version = "0.27.1", features = ["serde-serialize"] }
 once_cell = "1.5.2"
 pretty_env_logger = "0.4.0"
 serde = { version = "1.0.124", features = ["derive", "rc"] }
 serial-io = { version = "0.3", features = ["tokio"] }
-tokio = { version = "1.0.2", features = ["full"] }
+tokio = { version = "1.0.2", features = ["full", "rt-multi-thread"] }
 tokio-serial = "4.3.3"
 tokio-stream = "0.1"
 tokio-util = "0.6.7"

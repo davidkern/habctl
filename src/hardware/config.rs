@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 #[derive(Deserialize, Debug)]
 pub struct Hardware {
+    pub imu: HashMap<String, Imu>,
     pub mppt: HashMap<String, Mppt>,
 }
 
@@ -13,7 +14,7 @@ pub struct Mppt {
 }
 
 #[derive(Deserialize, Debug)]
-pub enum Protocol {
-    VictronVEDirect,
-    VictronMk3,
+pub struct Imu {
+    pub port: Option<String>,
+    pub loopback: Option<bool>,
 }

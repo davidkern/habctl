@@ -63,12 +63,44 @@ impl Icm20948 {
         match i2c_linux::I2c::from_path(self.port.to_owned()) {
             Ok(i2c) => {
                 let mut i2c = i2c;
-                // i2c mode 8 (0-axis mode)
-                let mut who_am_i: [u8; 1] = [0u8];
                 i2c.smbus_set_slave_address(0x69, false).expect("set i2c address");
-                let who_am_i = i2c.smbus_read_byte_data(0x00).unwrap();
-                //let result = i2c.i2c_read_block_data(0x00, &mut who_am_i);
-                frame.temperature = Some(who_am_i.into());
+
+                let accel_xout_h = i2c.smbus_read_byte_data(0x2d).unwrap() as f32;
+                let accel_xout_l = i2c.smbus_read_byte_data(0x2e).unwrap() as f32;
+                let accel_yout_h = i2c.smbus_read_byte_data(0x2f).unwrap() as f32;
+                let accel_yout_l = i2c.smbus_read_byte_data(0x30).unwrap() as f32;
+                let accel_zout_h = i2c.smbus_read_byte_data(0x31).unwrap() as f32;
+                let accel_zout_l = i2c.smbus_read_byte_data(0x32).unwrap() as f32;
+                let gyro_xout_h = i2c.smbus_read_byte_data(0x33).unwrap() as f32;
+                let gyro_xout_l = i2c.smbus_read_byte_data(0x34).unwrap() as f32;
+                let gyro_yout_h = i2c.smbus_read_byte_data(0x35).unwrap() as f32;
+                let gyro_yout_l = i2c.smbus_read_byte_data(0x36).unwrap() as f32;
+                let gyro_zout_h = i2c.smbus_read_byte_data(0x37).unwrap() as f32;
+                let gyro_zout_l = i2c.smbus_read_byte_data(0x38).unwrap() as f32;
+                let temp_out_h = i2c.smbus_read_byte_data(0x39).unwrap() as f32;
+                let temp_out_l = i2c.smbus_read_byte_data(0x3a).unwrap() as f32;
+
+                fn scale(hi: f32, lo: f32, s: f32) -> f32 {
+                    (hi * 256.0 + lo) * s
+                }
+
+                const ACCEL_SCALE: f32 = 2.0 / 65535.0;
+                let accel_x = scale(accel_xout_h, accel_xout_l, ACCEL_SCALE);
+                let accel_y = scale(accel_yout_h, accel_yout_l, ACCEL_SCALE);
+                let accel_z = scale(accel_zout_h, accel_zout_l, ACCEL_SCALE);
+
+                frame.accelerometer = Some(na::Vector3::new(accel_x, accel_y, accel_z));
+
+                const GYRO_SCALE: f32 = 250.0 / 65535.0;
+                let gyro_x = scale(gyro_xout_h, gyro_xout_l, GYRO_SCALE);
+                let gyro_y = scale(gyro_yout_h, gyro_yout_l, GYRO_SCALE);
+                let gyro_z = scale(gyro_zout_h, gyro_zout_l, GYRO_SCALE);
+
+                frame.gyrometer = Some(na::Vector3::new(gyro_x, gyro_y, gyro_z));
+
+                const TEMP_SCALE: f32 = 1.0 / 333.87;
+                let temp = scale(temp_out_h, temp_out_l, TEMP_SCALE);
+
                 *self.telemetry.lock().unwrap() = frame;
             },
             Err(e) => {
@@ -85,7 +117,7 @@ pub struct ImuFrame {
     timestamp: Option<SystemTime>,
 
     /// Rotation rate in degress per second (max 2000 dps)
-    gyroscope: Option<na::Rotation3<f32>>,
+    gyrometer: Option<na::Vector3<f32>>,
 
     /// Accelerameter 3-vector in g (max 2g)
     accelerometer: Option<na::Vector3<f32>>,

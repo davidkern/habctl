@@ -87,7 +87,7 @@ impl Icm20948 {
                     (hi * 256.0 + lo) * s
                 }
 
-                const ACCEL_SCALE: f32 = 2.0 / 65535.0;
+                const ACCEL_SCALE: f32 = 1.0 / 65535.0;
                 let accel_x = scale(accel_xout_h, accel_xout_l, ACCEL_SCALE);
                 let accel_y = scale(accel_yout_h, accel_yout_l, ACCEL_SCALE);
                 let accel_z = scale(accel_zout_h, accel_zout_l, ACCEL_SCALE);

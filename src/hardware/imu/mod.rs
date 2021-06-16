@@ -44,15 +44,20 @@ impl Icm20948 {
         } else {
             log::debug!("Icm20948 {} at {}", self.name, self.port);
 
-            task::block_in_place(|| {
-                self.stream_i2c_data();
-            })
+
+            loop {
+                task::block_in_place(|| {
+                    self.read_imu_data();
+                });
+    
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
         }
 
         Ok(())
     }
 
-    fn stream_i2c_data(&self) {
+    fn read_imu_data(&self) {
         let mut frame = ImuFrame::default();
 
         match i2c_linux::I2c::from_path(self.port.to_owned()) {
@@ -65,10 +70,6 @@ impl Icm20948 {
                 //let result = i2c.i2c_read_block_data(0x00, &mut who_am_i);
                 frame.temperature = Some(who_am_i.into());
                 *self.telemetry.lock().unwrap() = frame;
-
-                loop {
-                    std::thread::sleep(std::time::Duration::from_secs(1));
-                }
             },
             Err(e) => {
                 log::error!("IMU {}: {}", self.name, e);

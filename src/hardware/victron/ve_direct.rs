@@ -170,7 +170,7 @@ enum State {
 
 #[derive(Default, Clone, Debug, Serialize)]
 pub struct MpptFrame {
-    timestamp: Option<SystemTime>,
+    timestamp: Option<f32>,
 
     /// V: Battery voltage (mV)
     battery_voltage: Option<f32>,
@@ -474,7 +474,7 @@ impl Decoder for VeDirectMpptDecoder {
                                 if cursor.is_checksum_valid() {
                                     self.state = State::Crlf;
                                     cursor.consume_to_point();
-                                    frame.timestamp = Some(SystemTime::now());
+                                    frame.timestamp = Some(crate::hardware::timestamp());
                                     break Ok(Some(frame));
                                 } else {
                                     self.state = State::Unsynchronized;

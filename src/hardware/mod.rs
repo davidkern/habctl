@@ -15,6 +15,7 @@ use device::Device;
 use tokio::join;
 use std::pin::Pin;
 use std::future::Future;
+use std::time::SystemTime;
 
 #[derive(Serialize)]
 pub struct Hardware {
@@ -75,4 +76,8 @@ impl Default for Hardware {
 
         hardware
     }
+}
+
+pub fn timestamp() -> f32 {
+    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f32()
 }

@@ -105,9 +105,9 @@ impl Icm20948 {
                 let temp = scale(temp_out_h, temp_out_l, TEMP_SCALE) + 21.0;
 
                 frame.temperature = Some(temp);
-                frame.timestamp = Some(SystemTime::now());
+                frame.timestamp = Some(crate::hardware::timestamp());
 
-                log::info!("{}: {:?}", self.name, frame);
+                log::info!("{}: {}", self.name, frame);
                 *self.telemetry.lock().unwrap() = frame;
             },
             Err(e) => {
@@ -121,7 +121,7 @@ impl Icm20948 {
 
 #[derive(Default, Clone, Debug, Serialize)]
 pub struct ImuFrame {
-    timestamp: Option<SystemTime>,
+    timestamp: Option<f32>,
 
     /// Rotation rate in degress per second (max 2000 dps)
     gyrometer: Option<na::Vector3<f32>>,
@@ -134,4 +134,41 @@ pub struct ImuFrame {
 
     /// IMU temperature in deg C
     temperature: Option<f32>,
+}
+
+impl std::fmt::Display for ImuFrame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let accel = if let Some(a) = self.accelerometer {
+            format!("{:?}", (a.x, a.y, a.z))
+        } else {
+            format!("none")
+        };
+
+        let gyro = if let Some(g) = self.gyrometer {
+            format!("{:?}", (g.x, g.y, g.z))
+        } else {
+            format!("none")
+        };
+
+        let mag = if let Some(m) = self.magnetometer {
+            format!("{:?}", (m.x, m.y, m.z))
+        } else {
+           format!("none")
+        };
+
+        let temp = if let Some(t) = self.temperature {
+            format!("{}", t)
+        } else {
+            format!("none")
+        };
+
+        write!(
+            f,
+            "ACCEL {:?} GYRO {:?} MAG {:?} TEMP {:?}",
+            accel,
+            gyro,
+            mag,
+            temp
+        )
+    }
 }

@@ -26,6 +26,6 @@ serial-io = { version = "0.3", features = ["tokio"] }
 tokio = { version = "1.0.2", features = ["full", "rt-multi-thread"] }
 tokio-serial = "4.3.3"
 tokio-stream = "0.1"
-tokio-util = "0.6.7"
+tokio-util = { version = "0.6.7", features = ["codec"] }
 toml = "0.5.8"
 warp = "0.3.0"

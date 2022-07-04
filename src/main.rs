@@ -38,8 +38,6 @@ extern crate bitflags;
 
 mod config;
 mod hardware;
-#[cfg(test)]
-mod test;
 mod web;
 
 use anyhow::Result;

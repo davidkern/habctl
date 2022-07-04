@@ -1,15 +1,15 @@
 //! Victron VE-Direct interface
+use crate::hardware::device::Device;
 use anyhow::Result;
 use bytes::{Buf, BytesMut};
+use serde::Serialize;
 use serial_io::{build, AsyncSerial};
 use std::num::Wrapping;
 use std::str;
+use std::sync::{Arc, Mutex};
+use tokio::time::{sleep, Duration};
 use tokio_stream::StreamExt;
 use tokio_util::codec::{Decoder, FramedRead};
-use tokio::time::{sleep, Duration};
-use std::sync::{Arc, Mutex};
-use serde::Serialize;
-use crate::hardware::device::Device;
 
 #[derive(Serialize)]
 pub struct VeDirectMppt {
@@ -28,7 +28,7 @@ impl Device for VeDirectMppt {
             telemetry: Mutex::default(),
         })
     }
-    
+
     fn loopback(name: &str) -> Arc<VeDirectMppt> {
         Arc::new(VeDirectMppt {
             loopback: true,
@@ -36,7 +36,7 @@ impl Device for VeDirectMppt {
             port: String::new(),
             telemetry: Mutex::default(),
         })
-    }    
+    }
 }
 
 impl VeDirectMppt {
@@ -49,10 +49,10 @@ impl VeDirectMppt {
         } else {
             let builder = build(self.port.as_str(), 19200);
             let serial = AsyncSerial::from_builder(&builder)?;
-    
+
             let decoder = VeDirectMpptDecoder::default();
             let mut frame_reader = FramedRead::new(serial, decoder);
-    
+
             while let Some(result) = frame_reader.next().await {
                 match result {
                     Ok(frame) => {
@@ -63,7 +63,7 @@ impl VeDirectMppt {
                         log::error!("error: {}", e);
                     }
                 }
-            }    
+            }
         }
 
         Ok(())

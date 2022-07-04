@@ -41,8 +41,8 @@ mod hardware;
 mod web;
 
 use anyhow::Result;
-use tokio::runtime::Runtime;
 use std::sync::Arc;
+use tokio::runtime::Runtime;
 
 use crate::config::Config;
 
@@ -62,7 +62,10 @@ fn main() -> Result<()> {
         let hardware = Arc::new(hardware::Hardware::default());
 
         log::debug!("starting services");
-        tokio::try_join!(web::serve(Config::get().web.listen_addr, hardware.clone()), hardware.run(),)?;
+        tokio::try_join!(
+            web::serve(Config::get().web.listen_addr, hardware.clone()),
+            hardware.run(),
+        )?;
 
         log::debug!("exiting");
         Ok(())

@@ -9,7 +9,6 @@ use tokio_util::codec::{Decoder, FramedRead};
 use tokio::time::{sleep, Duration};
 use std::sync::{Arc, Mutex};
 use serde::Serialize;
-use std::time::SystemTime;
 use crate::hardware::device::Device;
 
 #[derive(Serialize)]

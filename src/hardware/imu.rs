@@ -3,10 +3,8 @@ use tokio::time::{sleep, Duration};
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use crate::hardware::device::Device;
-use std::time::SystemTime;
 use tokio::task;
 use nalgebra as na;
-use std::os::unix::io::AsRawFd;
 
 #[derive(Serialize)]
 pub struct Icm20948 {

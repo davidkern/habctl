@@ -6,13 +6,12 @@ pub mod imu;
 pub mod victron;
 
 use anyhow::Result;
-use futures::future::{try_join_all};
+use futures::future::try_join_all;
 use imu::Icm20948;
-use victron::ve_direct::{self, VeDirectMppt};
+use victron::ve_direct::VeDirectMppt;
 use std::sync::Arc;
 use serde::Serialize;
 use device::Device;
-use tokio::join;
 use std::pin::Pin;
 use std::future::Future;
 use std::time::SystemTime;

@@ -6,16 +6,15 @@ pub mod imu;
 pub mod victron;
 
 use anyhow::Result;
-use futures::future::{try_join_all};
-use imu::Icm20948;
-use victron::ve_direct::{self, VeDirectMppt};
-use std::sync::Arc;
-use serde::Serialize;
 use device::Device;
-use tokio::join;
-use std::pin::Pin;
+use futures::future::try_join_all;
+use imu::Icm20948;
+use serde::Serialize;
 use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
 use std::time::SystemTime;
+use victron::ve_direct::VeDirectMppt;
 
 #[derive(Serialize)]
 pub struct Hardware {
@@ -25,7 +24,6 @@ pub struct Hardware {
 
 impl Hardware {
     pub async fn run(&self) -> Result<Vec<Vec<()>>> {
-
         let mut imu_runners = Vec::new();
         for i in 0..self.imu.len() {
             imu_runners.push(self.imu[i].run())
@@ -36,12 +34,11 @@ impl Hardware {
             mppt_runners.push(self.mppt[i].run())
         }
 
-        try_join_all(
-            vec![
-                Box::pin(try_join_all(imu_runners)) as Pin<Box<dyn Future<Output=Result<Vec<()>>>>>,
-                Box::pin(try_join_all(mppt_runners))    
-            ]
-        ).await
+        try_join_all(vec![
+            Box::pin(try_join_all(imu_runners)) as Pin<Box<dyn Future<Output = Result<Vec<()>>>>>,
+            Box::pin(try_join_all(mppt_runners)),
+        ])
+        .await
     }
 }
 
@@ -54,22 +51,18 @@ impl Default for Hardware {
                 .hardware
                 .imu
                 .iter()
-                .map(|(name, config)| {
-                    match &config.port {
-                        Some(port) => Icm20948::device(name, &port),
-                        None => Icm20948::loopback(name),
-                    }
+                .map(|(name, config)| match &config.port {
+                    Some(port) => Icm20948::device(name, &port),
+                    None => Icm20948::loopback(name),
                 })
                 .collect(),
             mppt: config
                 .hardware
                 .mppt
                 .iter()
-                .map(|(name, config)| {
-                    match &config.port {
-                        Some(port) => VeDirectMppt::device(name, &port),
-                        None => VeDirectMppt::loopback(name),
-                    }
+                .map(|(name, config)| match &config.port {
+                    Some(port) => VeDirectMppt::device(name, &port),
+                    None => VeDirectMppt::loopback(name),
                 })
                 .collect(),
         };
@@ -79,5 +72,8 @@ impl Default for Hardware {
 }
 
 pub fn timestamp() -> f32 {
-    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f32()
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f32()
 }

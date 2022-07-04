@@ -1,12 +1,10 @@
+use crate::hardware::device::Device;
 use anyhow::Result;
-use tokio::time::{sleep, Duration};
+use nalgebra as na;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
-use crate::hardware::device::Device;
-use std::time::SystemTime;
 use tokio::task;
-use nalgebra as na;
-use std::os::unix::io::AsRawFd;
+use tokio::time::{sleep, Duration};
 
 #[derive(Serialize)]
 pub struct Icm20948 {
@@ -25,7 +23,7 @@ impl Device for Icm20948 {
             telemetry: Mutex::default(),
         })
     }
-    
+
     fn loopback(name: &str) -> Arc<Icm20948> {
         Arc::new(Icm20948 {
             loopback: true,
@@ -33,7 +31,7 @@ impl Device for Icm20948 {
             port: String::new(),
             telemetry: Mutex::default(),
         })
-    } 
+    }
 }
 
 impl Icm20948 {
@@ -44,12 +42,11 @@ impl Icm20948 {
         } else {
             log::debug!("Icm20948 {} at {}", self.name, self.port);
 
-
             loop {
                 task::block_in_place(|| {
                     self.read_imu_data();
                 });
-    
+
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
@@ -63,7 +60,8 @@ impl Icm20948 {
         match i2c_linux::I2c::from_path(self.port.to_owned()) {
             Ok(i2c) => {
                 let mut i2c = i2c;
-                i2c.smbus_set_slave_address(0x69, false).expect("set i2c address");
+                i2c.smbus_set_slave_address(0x69, false)
+                    .expect("set i2c address");
 
                 // power on, best available clock
                 i2c.smbus_write_byte_data(0x06, 0x01).expect("power up");
@@ -109,15 +107,13 @@ impl Icm20948 {
 
                 log::info!("{}: {}", self.name, frame);
                 *self.telemetry.lock().unwrap() = frame;
-            },
+            }
             Err(e) => {
                 log::error!("IMU {}: {}", self.name, e);
             }
         }
-
     }
 }
-
 
 #[derive(Default, Clone, Debug, Serialize)]
 pub struct ImuFrame {
@@ -153,7 +149,7 @@ impl std::fmt::Display for ImuFrame {
         let mag = if let Some(m) = self.magnetometer {
             format!("{:?}", (m.x, m.y, m.z))
         } else {
-           format!("none")
+            format!("none")
         };
 
         let temp = if let Some(t) = self.temperature {
@@ -165,10 +161,7 @@ impl std::fmt::Display for ImuFrame {
         write!(
             f,
             "ACCEL {:?} GYRO {:?} MAG {:?} TEMP {:?}",
-            accel,
-            gyro,
-            mag,
-            temp
+            accel, gyro, mag, temp
         )
     }
 }
